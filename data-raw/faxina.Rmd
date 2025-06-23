@@ -1,0 +1,105 @@
+---
+title: "faxina"
+output: html_document
+date: "2025-06-23"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Carregando os pacotes
+
+```{r}
+library(tidyverse)
+data_set <-  readxl::read_xlsx("../data-raw/Big_03.xlsx",
+                               na = "NA")
+data_set[25795,names(data_set)=="B_2"] <- NA
+# data_set[6,names(data_set)=="B_2"]
+data_set$B_2<-as.numeric(as.character(data_set$B_2))
+data_set[18854,names(data_set)=="Cu_1"| names(data_set)=="Fe_1" | names(data_set)=="Mn_1" | names(data_set)=="Zn_1"]<-NA
+data_set[27272,names(data_set)=="Cu_1"| names(data_set)=="Fe_1" | names(data_set)=="Mn_1" | names(data_set)=="Zn_1"]<-NA
+data_set$Cu_1<-as.numeric(as.character(data_set$Cu_1))
+data_set$Fe_1<-as.numeric(as.character(data_set$Fe_1))
+data_set$Mn_1<-as.numeric(as.character(data_set$Mn_1))
+data_set$Zn_1<-as.numeric(as.character(data_set$Zn_1))
+UN<-as.character(data_set$UNIDADE)
+un<-as.character(data_set$unidade)
+UN[is.na(data_set$UNIDADE)]<-un[is.na(data_set$UNIDADE)]
+data_set$UNIDADE<-factor(UN)
+apv<-as.character(data_set$aplic_vinh)
+apv[apv=="Sim"]<-"SIM"
+data_set$aplic_vinh<-as.factor(apv)
+vari<-sub(" ","",data_set$variedade)
+vari<-sub("-","",vari)
+vari<-sub("VIVEIRO","Viveiro",vari)
+data_set$variedade<-as.factor(vari)
+cort<-sub("15M","15m",data_set$corte)
+data_set$corte<-as.factor(cort)
+```
+
+
+```{r}
+#Construindo o vetor numérico referente ao número de cortes
+CORTE<-1:length(data_set[,1])
+{CORTE[data_set$corte =="10ºC"] =10
+CORTE[data_set$corte =="11ºC"] =11
+CORTE[data_set$corte =="12m" ] =1
+CORTE[data_set$corte =="12mB"] =1.5
+CORTE[data_set$corte =="12mT"] =1.75
+CORTE[data_set$corte =="15m" ]=1
+CORTE[data_set$corte =="15mB" ]=1.5
+CORTE[data_set$corte =="18m" ]=1.5
+CORTE[data_set$corte =="18mB"] =1.5
+CORTE[data_set$corte =="2ºC" ]=2
+CORTE[data_set$corte =="2ºCB"] =2.5
+CORTE[data_set$corte =="2ºCT"] =2.75
+CORTE[data_set$corte =="3ºC"  ]=3
+CORTE[data_set$corte =="3ºCB" ]=3.5
+CORTE[data_set$corte =="4ºC"  ]=4
+CORTE[data_set$corte =="4ºCB" ]=4.5
+CORTE[data_set$corte =="5ºC"  ]=5
+CORTE[data_set$corte =="5ºCB" ]=5.5
+CORTE[data_set$corte =="6ºC"  ]=6
+CORTE[data_set$corte =="6ºCB" ]=6.5
+CORTE[data_set$corte =="7ºC" ]=7
+CORTE[data_set$corte =="7ºCB" ]=7.5
+CORTE[data_set$corte =="8ºC"  ]=8
+CORTE[data_set$corte =="8ºCB" ]=8.5
+CORTE[data_set$corte =="9ºC" ]=9
+CORTE[data_set$corte =="9ºCB"] =9.5
+CORTE[data_set$corte =="REF" ]=0}
+```
+
+```{r}
+data_set_corte <- data_set %>% 
+  add_column(CORTE) %>% 
+  select(-corte) %>%
+  janitor::clean_names()
+
+top_variedades <- data_set %>% 
+   group_by(variedade) %>% 
+   summarise(
+     n=n()
+   ) %>% arrange(desc(n)) %>% 
+   head(5) %>% 
+   pull(variedade) %>% as.character()
+
+dc <- data_set_corte %>% 
+  filter(between(ano,2016,2018),
+         !(unidade=="CAT" & y <= -21.35),
+         !(unidade=="CAT" & y >= -20.80),
+         !(unidade=="POT" & y <= -21.40)) %>% 
+  select(data,ano,ponto,fazenda,ambiente,textura_2, solos,x,y,unidade,corte,variedade,tch_real,ca_2,m_2,sb_2,              ctc_2, p_resina_2, h_al_2,v_2,
+         k_2,mg_2, mo_2,ph_cacl2_2, s_2) %>%   
+  mutate(variedade = forcats::fct_other(variedade, keep = top_variedades, other_level = "outro")) %>% 
+  drop_na()
+
+dc |> 
+  # filter(ano == 2018) |> 
+  ggplot(aes(x=x,y=y,color=unidade)) + geom_point() +
+  facet_wrap(~ano,ncol=2)
+
+write_rds(dc,"../data/sugarcane-soil.rds")
+```
+

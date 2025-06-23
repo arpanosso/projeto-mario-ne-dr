@@ -1,0 +1,21 @@
+---
+output: github_document
+---
+
+<!-- README.md is generated from README.Rmd. Please edit that file -->
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE, warning = FALSE, erro=FALSE, message = FALSE,
+  comment = "#>"
+)
+```
+
+## APRENDIZADO DE MÁQUINA PARA PREDIÇÃO DA VARIABILIDADE ESPAÇO-TEMPORAL DA PRODUÇÃO DE CANA-DE-AÇÚCAR
+
+```{r}
+library(tidyverse)
+data_set <- read_rds("data/sugarcane-soil.rds")
+glimpse(data_set)
+```
+
