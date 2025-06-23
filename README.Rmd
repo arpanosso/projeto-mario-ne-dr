@@ -19,3 +19,20 @@ data_set <- read_rds("data/sugarcane-soil.rds")
 glimpse(data_set)
 ```
 
+## 1. Análise Estatística Exploratória
+
+Tabela com a estatística descritiva por unidade (CAT e POT) para as variáveis numéricas (n, min, q1, mediana, média, q3, max, dp, epm, cv, cassimetria, ccurtose) para as variáveis `tch_real` até `s_2`...independetemente do tempo, pra caracterizarmos a variabilidade total do conjunto de dados
+
+```{r}
+
+```
+
+## 2. Matriz de correlação linear (corplot) fazer por ano (2016, 2017 e 2018) e por UNIDADE
+
+### 2.1 análise de agrupamento ano (2016 e 2017) e por UNIDADE
+
+### 2.2 análise de componentes principais ano (2016 e 2017) e por UNIDADE
+
+## 3. Análise e modelagem geoestatística (2016 e 2017) e por UNIDADE.
+
+## 4. Aprendizado de máquina com validação final a partir dos dados de 2018 e por UNIDADE

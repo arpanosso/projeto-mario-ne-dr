@@ -35,3 +35,21 @@ glimpse(data_set)
 #> $ ph_cacl2_2 <dbl> 5.14, 5.03, 4.55, 4.72, 5.07, 5.23, 4.06, 4.99, 4.78, 4.28,…
 #> $ s_2        <dbl> 11.55523, 14.63704, 12.34360, 18.00553, 7.75672, 9.04678, 7…
 ```
+
+## 1. Análise Estatística Exploratória
+
+Tabela com a estatística descritiva por unidade (CAT e POT) para as
+variáveis numéricas (n, min, q1, mediana, média, q3, max, dp, epm, cv,
+cassimetria, ccurtose) para as variáveis `tch_real` até
+`s_2`…independetemente do tempo, pra caracterizarmos a variabilidade
+total do conjunto de dados
+
+## 2. Matriz de correlação linear (corplot) fazer por ano (2016, 2017 e 2018) e por UNIDADE
+
+### 2.1 análise de agrupamento ano (2016 e 2017) e por UNIDADE
+
+### 2.2 análise de componentes principais ano (2016 e 2017) e por UNIDADE
+
+## 3. Análise e modelagem geoestatística (2016 e 2017) e por UNIDADE.
+
+## 4. Aprendizado de máquina com validação final a partir dos dados de 2018 e por UNIDADE
