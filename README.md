@@ -60,6 +60,10 @@ criando a função para a análise exploratória dos dados
 
 ``` r
 estat_desc <- function(x){
+  set.seed(1235)
+  xs <- sample(x,500)
+  normal <- nortest::lillie.test(xs)
+  log_norm <- nortest::lillie.test(log(xs+1))
   n <- length(x)
   m <- mean(x,na.rm = TRUE)
   md <- median(x)
@@ -72,10 +76,10 @@ estat_desc <- function(x){
   cv <- 100*dp/m
   ass <- agricolae::skewness(x)
   curt <- agricolae::kurtosis(x)
-  c(n,mini,q1,md,m,q3,maxi,dp,epm,cv,ass,curt)
+  c(n,mini,q1,md,m,q3,maxi,dp,epm,cv,ass,curt,normal$p.value,log_norm$p.value)
 }
 estat_names <- c("n","Min","Q1","Med","Média","Q3",
-                 "Max","DP","EP","CV","Skn","Krt")
+                 "Max","DP","EP","CV","Skn","Krt","norm","log_norm")
 ```
 
 Tabela de estatística descritiva presente no arquivo do excel na pasta
@@ -331,6 +335,87 @@ map(var_names, ~{
 
 ![](README_files/figure-gfm/unnamed-chunk-8-13.png)<!-- -->
 
+### Dados transformados com log
+
+``` r
+map(var_names, ~{
+  x<-data_set |> pull(!!sym(.x))
+  x<-log(x+1)
+  q3 <- quantile(x,0.99)
+  data_set |> 
+    mutate(!!sym(.x) := log(!!sym(.x) +1)) |> 
+    # filter(!!sym(.x) <= q3) |> 
+    ggplot(aes(x=!!sym(.x),fill=unidade)) +
+    geom_histogram(color="black") +
+    scale_fill_manual(values=c("#009E73", "#D55E00")) +
+    labs(x="Ano", y=paste0("log(",.x,"+1)"))+
+    facet_wrap(~ano,ncol=2)
+})
+#> [[1]]
+```
+
+![](README_files/figure-gfm/unnamed-chunk-9-1.png)<!-- -->
+
+    #> 
+    #> [[2]]
+
+![](README_files/figure-gfm/unnamed-chunk-9-2.png)<!-- -->
+
+    #> 
+    #> [[3]]
+
+![](README_files/figure-gfm/unnamed-chunk-9-3.png)<!-- -->
+
+    #> 
+    #> [[4]]
+
+![](README_files/figure-gfm/unnamed-chunk-9-4.png)<!-- -->
+
+    #> 
+    #> [[5]]
+
+![](README_files/figure-gfm/unnamed-chunk-9-5.png)<!-- -->
+
+    #> 
+    #> [[6]]
+
+![](README_files/figure-gfm/unnamed-chunk-9-6.png)<!-- -->
+
+    #> 
+    #> [[7]]
+
+![](README_files/figure-gfm/unnamed-chunk-9-7.png)<!-- -->
+
+    #> 
+    #> [[8]]
+
+![](README_files/figure-gfm/unnamed-chunk-9-8.png)<!-- -->
+
+    #> 
+    #> [[9]]
+
+![](README_files/figure-gfm/unnamed-chunk-9-9.png)<!-- -->
+
+    #> 
+    #> [[10]]
+
+![](README_files/figure-gfm/unnamed-chunk-9-10.png)<!-- -->
+
+    #> 
+    #> [[11]]
+
+![](README_files/figure-gfm/unnamed-chunk-9-11.png)<!-- -->
+
+    #> 
+    #> [[12]]
+
+![](README_files/figure-gfm/unnamed-chunk-9-12.png)<!-- -->
+
+    #> 
+    #> [[13]]
+
+![](README_files/figure-gfm/unnamed-chunk-9-13.png)<!-- -->
+
 ## 2. Matriz de correlação linear (corplot) fazer por ano (2016, 2017 e 2018) e por UNIDADE
 
 Para CAT
@@ -364,7 +449,7 @@ map(2016:2018, ~{data_set |> filter(unidade == "CAT") |>
          number.cex = 0.8)}) 
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-9-1.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-9-2.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-9-3.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-10-1.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-2.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-3.png)<!-- -->
 
     #> [[1]]
     #> [[1]]$corr
@@ -791,7 +876,7 @@ map(2016:2018, ~{data_set |> filter(unidade == "POT") |>
          number.cex = 0.8)}) 
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-10-1.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-2.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-3.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-11-1.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-11-2.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-11-3.png)<!-- -->
 
     #> [[1]]
     #> [[1]]$corr
@@ -1224,7 +1309,7 @@ plot(da_pad_euc_ward,
      cex=.6,lwd=1.5);box()
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-11-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-12-1.png)<!-- -->
 
 ``` r
 grupo <- cutree(da_pad_euc_ward,3)
@@ -1260,7 +1345,7 @@ mcor<-cor(da_pad,pca$x)
 corrplot(mcor)
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-12-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-1.png)<!-- -->
 
 ``` r
 print("==== screeplot ====")
@@ -1269,7 +1354,7 @@ screeplot(pca)
 abline(h=1)
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-12-2.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-2.png)<!-- -->
 
 ``` r
 pc1V<-cor(da_pad,pca$x)[,1]/sd(cor(da_pad,pca$x)[,1])
@@ -1321,7 +1406,7 @@ bi_plot +
   )
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-14-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-15-1.png)<!-- -->
 
 ``` r
 # gráfico biplot
@@ -1355,7 +1440,7 @@ bi_plot_2 +
   )
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-15-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-16-1.png)<!-- -->
 
 ``` r
  data_set |> 
@@ -1373,7 +1458,7 @@ bi_plot_2 +
   scale_color_manual(values=c("#009E73", "#999999","#D55E00")) 
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-16-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-17-1.png)<!-- -->
 
 ## 3. Análise e modelagem geoestatística (2016 e 2017) e por UNIDADE.
 

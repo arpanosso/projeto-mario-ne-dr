@@ -40,6 +40,10 @@ criando a função para a análise exploratória dos dados
 
 ```{r}
 estat_desc <- function(x){
+  set.seed(1235)
+  xs <- sample(x,500)
+  normal <- nortest::lillie.test(xs)
+  log_norm <- nortest::lillie.test(log(xs+1))
   n <- length(x)
   m <- mean(x,na.rm = TRUE)
   md <- median(x)
@@ -52,10 +56,10 @@ estat_desc <- function(x){
   cv <- 100*dp/m
   ass <- agricolae::skewness(x)
   curt <- agricolae::kurtosis(x)
-  c(n,mini,q1,md,m,q3,maxi,dp,epm,cv,ass,curt)
+  c(n,mini,q1,md,m,q3,maxi,dp,epm,cv,ass,curt,normal$p.value,log_norm$p.value)
 }
 estat_names <- c("n","Min","Q1","Med","Média","Q3",
-                 "Max","DP","EP","CV","Skn","Krt")
+                 "Max","DP","EP","CV","Skn","Krt","norm","log_norm")
 ```
 
 
@@ -117,6 +121,25 @@ map(var_names, ~{
                         name = "classe", guide = "legend") +
     labs(y="Ano", x=.x)+
     theme_ridges()
+})
+```
+
+
+### Dados transformados com log
+
+```{r}
+map(var_names, ~{
+  x<-data_set |> pull(!!sym(.x))
+  x<-log(x+1)
+  q3 <- quantile(x,0.99)
+  data_set |> 
+    mutate(!!sym(.x) := log(!!sym(.x) +1)) |> 
+    # filter(!!sym(.x) <= q3) |> 
+    ggplot(aes(x=!!sym(.x),fill=unidade)) +
+    geom_histogram(color="black") +
+    scale_fill_manual(values=c("#009E73", "#D55E00")) +
+    labs(x="Ano", y=paste0("log(",.x,"+1)"))+
+    facet_wrap(~ano,ncol=2)
 })
 ```
 
