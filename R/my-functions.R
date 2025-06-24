@@ -48,7 +48,9 @@ my_cross_validation <- function(df,formula,m1,m2,m3){
     est<-0
     # vari<-as.character(form)[2]
     for(i in 1:nrow(conjunto_validacao)){
-      valid <- krige(formula=formula, conjunto_validacao[-i,], conjunto_validacao, model=modelos[[j]])
+      valid <- krige(formula=formula, conjunto_validacao[-i,],
+                     conjunto_validacao,
+                     model=modelos[[j]])
       est[i]<-valid$var1.pred[i]
     }
     obs<-as.data.frame(conjunto_validacao)[,3]

@@ -491,7 +491,7 @@ Construir o semivariograma experimental
 ```{r}
 vari_exp <- gstat::variogram(form, data = data_set_aux,
                       cressie = FALSE,
-                      cutoff = 0.15, # distância máxima do semivariograma
+                      cutoff = 0.10, # distância máxima do semivariograma
                       width = .008) # distância entre pontos
 vari_exp  |>  
  ggplot(aes(x=dist, y=gamma)) +
@@ -522,7 +522,7 @@ O melhor modelo é aquele que apresenta um coeficiente de regressão o mais pró
 #### Definido o melhor modelo, precisamos guardar os valores.
 
 ```{r}
-modelo <- modelo_3 ## sempre modificar
+modelo <- modelo_2 ## sempre modificar
 model <- modelo |> slice(2) |> pull(model)
 rss <- round(attr(modelo, "SSErr"),4)
 c0 <- round(modelo$psill[[1]],4)
@@ -557,6 +557,70 @@ png(filename = paste0("output/semivariogram-img/semivar-",
     width = 800, height = 600)
 plot(vari_exp,model=modelo,cex.lab=2, col=1,pl=F,pch=16,cex=2.2,ylab=list("Semivariância",cex=2.3),xlab=list("Distância de Separação h (m)",cex=2.3,cex.axis=4))
 dev.off()
+```
+
+### Krigragem ordinária (KO)
+Utilizando o algorítmo de KO, vamos estimar xco2 nos locais não amostrados.
+
+
+```{r}
+def_pol <- function(x, y, pol){
+  as.logical(sp::point.in.polygon(point.x = x,
+                                  point.y = y,
+                                  pol.x = pol[,1],
+                                  pol.y = pol[,2]))
+}
+x<-data_set_aux$x
+y<-data_set_aux$y
+dis <- 0.005 #Distância entre pontos
+grid <- expand.grid(X=seq(min(x),max(x),dis), Y=seq(min(y),max(y),dis)) |> 
+    mutate(flag = def_pol(X,Y,contorno_cat)) |>  
+  filter(flag) |> select(-flag)
+gridded(grid) = ~ X + Y
+plot(grid) 
+points(x,y,col="red",pch=4)
+```
+
+
+```{r}
+ko_variavel <- krige(formula=form, data_set_aux, grid, model=modelo, 
+    block=c(0,0),
+    nsim=0,
+    na.action=na.pass,
+    debug.level=-1,  
+    )
+```
+
+Mapa de padrão espacial
+
+```{r}
+mapa <- as.tibble(ko_variavel) |> 
+  ggplot(aes(x=X, y=Y)) + 
+  geom_tile(aes(fill = var1.pred)) +
+  # scale_fill_gradient(low = "yellow", high = "blue") + 
+  scale_fill_viridis_c() +
+  coord_equal() + 
+  labs(fill=variavel,
+       x="Longitude",
+       y="Latitude")
+mapa
+ggsave(paste0("output/krigagem/krg-",ano_analise,"-",
+                   unidade_analise,"-",variavel,".png"))
+```
+
+
+### Salvando o arquivo krigado
+
+```{r}
+df <- ko_variavel |> 
+  as.tibble() |> 
+  mutate(var1.var = sqrt(var1.var)) |> 
+  rename(
+    !!variavel := var1.pred,
+    !!paste0(variavel,"_sd") := var1.var,
+  )
+write_rds(df,paste0("output/krigagem/estimativa-",ano_analise,"-",
+                   unidade_analise,"-",variavel,".rds"))
 ```
 
 

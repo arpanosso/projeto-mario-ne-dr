@@ -1611,7 +1611,7 @@ Construir o semivariograma experimental
 ``` r
 vari_exp <- gstat::variogram(form, data = data_set_aux,
                       cressie = FALSE,
-                      cutoff = 0.15, # distância máxima do semivariograma
+                      cutoff = 0.10, # distância máxima do semivariograma
                       width = .008) # distância entre pontos
 vari_exp  |>  
  ggplot(aes(x=dist, y=gamma)) +
@@ -2557,7 +2557,7 @@ RMSE possível.
 #### Definido o melhor modelo, precisamos guardar os valores.
 
 ``` r
-modelo <- modelo_3 ## sempre modificar
+modelo <- modelo_2 ## sempre modificar
 model <- modelo |> slice(2) |> pull(model)
 rss <- round(attr(modelo, "SSErr"),4)
 c0 <- round(modelo$psill[[1]],4)
@@ -2594,6 +2594,78 @@ plot(vari_exp,model=modelo,cex.lab=2, col=1,pl=F,pch=16,cex=2.2,ylab=list("Semiv
 dev.off()
 #> png 
 #>   2
+```
+
+### Krigragem ordinária (KO)
+
+Utilizando o algorítmo de KO, vamos estimar xco2 nos locais não
+amostrados.
+
+``` r
+def_pol <- function(x, y, pol){
+  as.logical(sp::point.in.polygon(point.x = x,
+                                  point.y = y,
+                                  pol.x = pol[,1],
+                                  pol.y = pol[,2]))
+}
+x<-data_set_aux$x
+y<-data_set_aux$y
+dis <- 0.005 #Distância entre pontos
+grid <- expand.grid(X=seq(min(x),max(x),dis), Y=seq(min(y),max(y),dis)) |> 
+    mutate(flag = def_pol(X,Y,contorno_cat)) |>  
+  filter(flag) |> select(-flag)
+gridded(grid) = ~ X + Y
+plot(grid) 
+points(x,y,col="red",pch=4)
+```
+
+![](README_files/figure-gfm/unnamed-chunk-29-1.png)<!-- -->
+
+``` r
+ko_variavel <- krige(formula=form, data_set_aux, grid, model=modelo, 
+    block=c(0,0),
+    nsim=0,
+    na.action=na.pass,
+    debug.level=-1,  
+    )
+#> [using ordinary kriging]
+#>   0% done  1% done  2% done  3% done  4% done  5% done  6% done  7% done  8% done  9% done 10% done 11% done 12% done 13% done 14% done 15% done 16% done 17% done 18% done 19% done 20% done 21% done 22% done 23% done 24% done 25% done 26% done 27% done 28% done 29% done 30% done 31% done 32% done 33% done 34% done 35% done 36% done 37% done 38% done 39% done 40% done 41% done 42% done 43% done 44% done 45% done 46% done 47% done 48% done 49% done 50% done 51% done 52% done 53% done 54% done 55% done 56% done 57% done 58% done 59% done 60% done 61% done 62% done 63% done 64% done 65% done 66% done 67% done 68% done 69% done 70% done 71% done 72% done 73% done 74% done 75% done 76% done 77% done 78% done 79% done 80% done 81% done 82% done 83% done 84% done 85% done 86% done 87% done 88% done 89% done 90% done 91% done 92% done 93% done 94% done 95% done 96% done 97% done 98% done 99% done100% done
+```
+
+Mapa de padrão espacial
+
+``` r
+mapa <- as.tibble(ko_variavel) |> 
+  ggplot(aes(x=X, y=Y)) + 
+  geom_tile(aes(fill = var1.pred)) +
+  # scale_fill_gradient(low = "yellow", high = "blue") + 
+  scale_fill_viridis_c() +
+  coord_equal() + 
+  labs(fill=variavel,
+       x="Longitude",
+       y="Latitude")
+mapa
+```
+
+![](README_files/figure-gfm/unnamed-chunk-31-1.png)<!-- -->
+
+``` r
+ggsave(paste0("output/krigagem/krg-",ano_analise,"-",
+                   unidade_analise,"-",variavel,".png"))
+```
+
+### Salvando o arquivo krigado
+
+``` r
+df <- ko_variavel |> 
+  as.tibble() |> 
+  mutate(var1.var = sqrt(var1.var)) |> 
+  rename(
+    !!variavel := var1.pred,
+    !!paste0(variavel,"_sd") := var1.var,
+  )
+write_rds(df,paste0("output/krigagem/estimativa-",ano_analise,"-",
+                   unidade_analise,"-",variavel,".rds"))
 ```
 
 ## 4. Aprendizado de máquina com validação final a partir dos dados de 2018 e por UNIDADE
