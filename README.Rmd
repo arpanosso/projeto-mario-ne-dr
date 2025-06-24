@@ -364,7 +364,104 @@ bi_plot_2 +
   scale_shape_manual(values=16:18)+
   scale_color_manual(values=c("#009E73", "#999999","#D55E00")) 
 ```
+```{r}
+data_set |> 
+  group_by(unidade,x,y) |> 
+  summarise(
+    across(.cols = tch_real:s,
+           .fns = mean,
+           .names = "{.col}"),
+    .groups = "drop"
+  ) |> 
+  filter(unidade == "POT") |>
+  ggplot(aes(x,y)) +
+  geom_point()
+```
+## Criando o contorno e POT
 
+```{r}
+contorno_pot <- data_set |> 
+  group_by(unidade,x,y) |> 
+  summarise(
+    n=n(),
+    .groups = "drop"
+  ) |> 
+  filter(unidade == "POT") |> 
+  mutate(
+    x1=mean(x),
+    y1=mean(y),
+    ang_rad = round(atan2(y-y1,x-x1),1),
+    distancia = sqrt((x - x1)^2 + (y - y1)^2),
+  ) |> 
+  group_by(ang_rad) |> 
+  mutate(
+    max_dist = max(distancia)
+  ) |> 
+  ungroup() |> 
+  mutate(flag_dist =distancia == max_dist) |> 
+  filter(flag_dist)  |> 
+  arrange(ang_rad) |> 
+  select(x,y) |>   
+  as.data.frame()
+contorno_pot <- rbind(contorno_pot, contorno_pot[1,]) 
+```
+
+
+```{r}
+ggplot(contorno_pot, aes(x = x, y = y)) +
+  geom_polygon(fill = "lightblue", color = "black") +
+  coord_equal() +  # Mantém proporção real dos eixos
+  theme_minimal()
+```
+## Criando o contorno e CAT
+
+```{r}
+contorno_cat <- data_set |> 
+  group_by(unidade,x,y) |> 
+  summarise(
+    n=n(),
+    .groups = "drop"
+  ) |> 
+  filter(unidade == "CAT") |> 
+  mutate(
+    x1=mean(x),
+    y1=mean(y),
+    ang_rad = round(atan2(y-y1,x-x1),1),
+    distancia = sqrt((x - x1)^2 + (y - y1)^2),
+  ) |> 
+  group_by(ang_rad) |> 
+  mutate(
+    max_dist = max(distancia)
+  ) |> 
+  ungroup() |> 
+  mutate(flag_dist =distancia == max_dist) |> 
+  filter(flag_dist)  |> 
+  arrange(ang_rad) |> 
+  select(x,y) |>   
+  as.data.frame()
+contorno_cat <- rbind(contorno_cat, contorno_cat[1,]) 
+```
+
+
+```{r}
+ggplot(contorno_cat, aes(x = x, y = y)) +
+  geom_polygon(fill = "red4", color = "black") +
+  coord_equal() +  # Mantém proporção real dos eixos
+  theme_minimal()
+```
+```{r}
+contorno_total <- rbind(contorno_cat |> 
+                    mutate(unidade="CAT"),
+                  contorno_pot |> 
+                    mutate(unidade="POT"))
+contorno_total |> ggplot(aes(x = x, y = y, group = unidade, fill = unidade)) +
+  geom_polygon(color = "black", alpha = 0.5) +
+  coord_equal() +
+  theme_minimal()+
+  geom_point(data = data_set |> 
+               filter(ano == 2018),
+             aes(x,y,color=unidade))
+```
 
 ## 3. Análise e modelagem geoestatística (2016 e 2017) e por UNIDADE.
 
