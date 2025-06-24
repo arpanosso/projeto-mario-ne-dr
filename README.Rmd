@@ -20,6 +20,9 @@ library(tidyverse)
 library(ggridges)
 library(vegan)
 library(corrplot)
+library(sp)
+library(gstat)
+source("R/my-functions.R")
 theme_set(theme_bw())
 ```
 
@@ -28,7 +31,20 @@ theme_set(theme_bw())
 
 ```{r}
 data_set <- read_rds("data/sugarcane-soil.rds")  |> 
-  rename_with(~ str_replace(., "_2$", ""), ends_with("_2"))
+  rename_with(~ str_replace(., "_2$", ""), ends_with("_2")) |>  
+    rename(TCH = tch_real,
+           Ca = ca,
+           `m%` = m,
+           SB = sb,
+           CTC = ctc,
+           P = p_resina,
+           `H+Al` = h_al,
+           `V%` = v,
+           K = k,
+           Mg = mg,
+           MO = mo,
+           pH = ph_cacl2,
+           S = s) 
 glimpse(data_set)
 ```
 
@@ -69,7 +85,7 @@ Tabela de estatística descritiva presente no arquivo do excel na pasta `output`
 data_set |> 
   group_by(ano,unidade) |> 
   reframe(
-    across(.cols = tch_real:s,
+    across(.cols = TCH:S,
            .fns = estat_desc,
            .names = "{.col}")
   )|> 
@@ -81,7 +97,7 @@ data_set |>
 Boxplot para comparação
 
 ```{r}
-var_names <- data_set |> select(tch_real:s) |> names()
+var_names <- data_set |> select(TCH:S) |> names()
 map(var_names, ~{
     x<-data_set |> pull(!!sym(.x))
   q3 <- quantile(x,0.99)
@@ -125,43 +141,14 @@ map(var_names, ~{
 ```
 
 
-### Dados transformados com log
 
-```{r}
-map(var_names, ~{
-  x<-data_set |> pull(!!sym(.x))
-  x<-log(x+1)
-  q3 <- quantile(x,0.99)
-  data_set |> 
-    mutate(!!sym(.x) := log(!!sym(.x) +1)) |> 
-    # filter(!!sym(.x) <= q3) |> 
-    ggplot(aes(x=!!sym(.x),fill=unidade)) +
-    geom_histogram(color="black") +
-    scale_fill_manual(values=c("#009E73", "#D55E00")) +
-    labs(x="Ano", y=paste0("log(",.x,"+1)"))+
-    facet_wrap(~ano,ncol=2)
-})
-```
 
 ## 2. Matriz de correlação linear (corplot) fazer por ano (2016, 2017 e 2018) e por UNIDADE
 
 
 Para CAT
 ```{r}
-map(2016:2018, ~{data_set |> filter(unidade == "CAT") |>  
-    rename(TCH = tch_real,
-           Ca = ca,
-           `m%` = m,
-           SB = sb,
-           CTC = ctc,
-           P = p_resina,
-           `H+Al` = h_al,
-           `V%` = v,
-           K = k,
-           Mg = mg,
-           MO = mo,
-           pH = ph_cacl2,
-           S = s) |> 
+map(2016:2018, ~{data_set |> filter(unidade == "CAT") |> 
   filter(ano == .x) |> 
   select(TCH:S) |> 
   cor() |> 
@@ -178,20 +165,7 @@ map(2016:2018, ~{data_set |> filter(unidade == "CAT") |>
 
 Para POT
 ```{r}
-map(2016:2018, ~{data_set |> filter(unidade == "POT") |>  
-    rename(TCH = tch_real,
-           Ca = ca,
-           `m%` = m,
-           SB = sb,
-           CTC = ctc,
-           P = p_resina,
-           `H+Al` = h_al,
-           `V%` = v,
-           K = k,
-           Mg = mg,
-           MO = mo,
-           pH = ph_cacl2,
-           S = s) |> 
+map(2016:2018, ~{data_set |> filter(unidade == "POT") |> 
   filter(ano == .x) |> 
   select(TCH:S) |> 
   cor() |> 
@@ -210,19 +184,6 @@ map(2016:2018, ~{data_set |> filter(unidade == "POT") |>
 
 ```{r}
 da <- data_set |> 
-      rename(TCH = tch_real,
-           Ca = ca,
-           `m%` = m,
-           SB = sb,
-           CTC = ctc,
-           P = p_resina,
-           `H+Al` = h_al,
-           `V%` = v,
-           K = k,
-           Mg = mg,
-           MO = mo,
-           pH = ph_cacl2,
-           S = s) |> 
   group_by(x,y) |> 
   summarise(
     across(.cols = TCH:S,
@@ -246,7 +207,7 @@ grupo <- cutree(da_pad_euc_ward,3)
 
 
 
-### 2.2 análise de componentes principais ano (2016 e 2017) e por UNIDADE
+### 2.2 análise de componentes principais 
 
 ```{r}
 print("======== Análise de Componentes Principais ========== ")
@@ -350,10 +311,25 @@ bi_plot_2 +
   )
 ```
 ```{r}
+print("==== Tabela da correlação dos atributos com cada PC ====")
+    ck<-sum(pca$sdev^2>=0.98)
+    tabelapca<-vector()
+    for( l in 1:ck) tabelapca<-cbind(tabelapca,mcor[,l])
+    colnames(tabelapca)<-paste(rep(c("PC"),ck),1:ck,sep="")
+    pcat<-round(tabelapca,3)
+    tabelapca<-tabelapca[order(abs(tabelapca[,1])),]
+    print(tabelapca)
+writexl::write_xlsx(data.frame(tabelapca) |> 
+                      add_column(nome = row.names(tabelapca)) |> 
+                      relocate(nome), "output/pca-table.xlsx")
+```
+
+
+```{r}
  data_set |> 
   group_by(x,y) |> 
   summarise(
-    across(.cols = tch_real:s,
+    across(.cols = TCH:S,
            .fns = mean,
            .names = "{.col}"),
     .groups = "drop"
@@ -368,7 +344,7 @@ bi_plot_2 +
 data_set |> 
   group_by(unidade,x,y) |> 
   summarise(
-    across(.cols = tch_real:s,
+    across(.cols = TCH:S,
            .fns = mean,
            .names = "{.col}"),
     .groups = "drop"
@@ -404,10 +380,7 @@ contorno_pot <- data_set |>
   select(x,y) |>   
   as.data.frame()
 contorno_pot <- rbind(contorno_pot, contorno_pot[1,]) 
-```
 
-
-```{r}
 ggplot(contorno_pot, aes(x = x, y = y)) +
   geom_polygon(fill = "lightblue", color = "black") +
   coord_equal() +  # Mantém proporção real dos eixos
@@ -440,12 +413,9 @@ contorno_cat <- data_set |>
   select(x,y) |>   
   as.data.frame()
 contorno_cat <- rbind(contorno_cat, contorno_cat[1,]) 
-```
 
-
-```{r}
 ggplot(contorno_cat, aes(x = x, y = y)) +
-  geom_polygon(fill = "red4", color = "black") +
+  geom_polygon(fill = "pink", color = "black") +
   coord_equal() +  # Mantém proporção real dos eixos
   theme_minimal()
 ```
@@ -463,6 +433,131 @@ contorno_total |> ggplot(aes(x = x, y = y, group = unidade, fill = unidade)) +
              aes(x,y,color=unidade))
 ```
 
-## 3. Análise e modelagem geoestatística (2016 e 2017) e por UNIDADE.
+
+## Comparação variáveis originais e log transformadas
+
+```{r}
+map(var_names, ~{
+  # x<-data_set |> pull(!!sym(.x))
+  # x<-log(x+1)
+  # q3 <- quantile(x,0.99)
+  new_var <- paste0("log(", .x,"+1)")
+  data_set |> 
+    mutate(!!new_var := log(!!sym(.x) +1)) |> 
+    select(!!sym(.x), !!sym(new_var)) |> 
+    pivot_longer(cols = c(!!sym(.x), !!sym(new_var)),
+                 names_to = "variavel",
+                 values_to = "valor") |> 
+    ggplot(aes(valor,fill = variavel)) +
+    geom_histogram(color="black") +
+    # labs(x="Ano", y=paste0("log(",.x,"+1)")) +
+      facet_wrap(~variavel, scale="free") +
+    scale_fill_brewer(palette = "Dark2")
+})
+```
+
+## 3. Análise e modelagem geoestatística (2016, 2017 e 2018) por UNIDADE.
+
+### Separando o banco de dados (CAT) e transformar se necessário
+
+```{r}
+ano_analise <- 2016
+variavel <- "TCH"
+unidade_analise <- "CAT"
+data_set_aux <- data_set |> 
+  filter(
+    ano == ano_analise,
+    unidade == unidade_analise) |> 
+  select(x,y,variavel) |> 
+  rename(z = !!sym(variavel)) |> 
+  group_by(x,y) |> 
+  summarise(
+    z = mean(z,na.rm = TRUE),
+    .groups = "drop"
+  )
+glimpse(data_set_aux)
+```
+
+### Transformar se necessário
+
+```{r}
+sp::coordinates(data_set_aux) = ~ x + y  
+form <- z ~ 1 # fórmula da função variogram
+```
+
+
+Construir o semivariograma experimental
+
+```{r}
+vari_exp <- gstat::variogram(form, data = data_set_aux,
+                      cressie = FALSE,
+                      cutoff = 0.15, # distância máxima do semivariograma
+                      width = .008) # distância entre pontos
+vari_exp  |>  
+ ggplot(aes(x=dist, y=gamma)) +
+ geom_point() +
+ labs(x="lag (º)",
+      y=expression(paste(gamma,"(h)")))
+```
+## Escolher o melhor modelo
+
+```{r}
+patamar=600
+alcance=0.02
+epepita=0
+modelo_1 <- fit.variogram(vari_exp,vgm(patamar,"Sph",alcance,epepita))
+modelo_2 <- fit.variogram(vari_exp,vgm(patamar,"Exp",alcance,epepita))
+modelo_3 <- fit.variogram(vari_exp,vgm(patamar,"Gau",alcance,epepita))
+plot_my_models(modelo_1,modelo_2,modelo_3)
+```
+
+### Validação Cruzada
+```{r}
+my_cross_validation(data_set_aux,form,modelo_1,modelo_2,modelo_3)
+```
+### Escolha do melhor modelo
+
+O melhor modelo é aquele que apresenta um coeficiente de regressão o mais próximo de $1$ e o intercepto o mais próximo de $0$, com o menor RMSE possível.
+
+#### Definido o melhor modelo, precisamos guardar os valores.
+
+```{r}
+modelo <- modelo_3 ## sempre modificar
+model <- modelo |> slice(2) |> pull(model)
+rss <- round(attr(modelo, "SSErr"),4)
+c0 <- round(modelo$psill[[1]],4)
+c0_c1 <- round(sum(modelo$psill),4)
+a <- ifelse(model == "Gau", round(modelo$range[[2]]*(3^.5),2),
+            ifelse(model == "Exp",round(3*modelo$range[[2]],2),
+            round(modelo$range[[2]],2)))
+r2 <- vari_exp |> add_column( model = model, a=a, c0 = c0,
+                                  c0_c1 = c0_c1) |>
+    mutate(
+      gamma_m = ifelse(model == "Sph",
+        ifelse(dist <= a, c0 + (c0_c1 - c0) * (3/2 * (dist/a) - 1/2 * (dist/a)^3),c0_c1), ifelse(model == "Exp", c0 + (c0_c1-c0)*(1-exp(-3*(dist/a))),c0 + (c0_c1-c0)*(1-exp(-3*(dist/a)^2)))),
+      residuo_total = (gamma-mean(gamma))^2,
+      residuo_mod = (gamma - gamma_m)^2
+    ) |>
+    summarise(
+      r2=(sum(residuo_total) - sum(residuo_mod))/sum(residuo_total)
+    ) |> pull(r2)
+
+tibble(
+  ano_analise, unidade_analise, variavel, model, c0, c0_c1, a, rss, r2
+) |> mutate(gde = c0/c0_c1, .after = "a") |>
+  write_csv(paste0("output/best-fit/",ano_analise,"-",
+                   unidade_analise,"-",variavel,".csv"))
+
+ls_csv <- list.files("output/best-fit/",full.names = TRUE,pattern = ".csv")
+map_df(ls_csv, read_csv) |>
+  writexl::write_xlsx("output/semivariogram-models.xlsx")
+png(filename = paste0("output/semivariogram-img/semivar-",
+                      ano_analise,"-",
+                   unidade_analise,"-",variavel,".png"),
+    width = 800, height = 600)
+plot(vari_exp,model=modelo,cex.lab=2, col=1,pl=F,pch=16,cex=2.2,ylab=list("Semivariância",cex=2.3),xlab=list("Distância de Separação h (m)",cex=2.3,cex.axis=4))
+dev.off()
+```
+
 
 ## 4. Aprendizado de máquina com validação final a partir dos dados de 2018 e por UNIDADE
