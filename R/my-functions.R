@@ -55,7 +55,7 @@ plot_my_models <- function(modelo_1,modelo_2,modelo_3){
 my_cross_validation <- function(df,formula,m1,m2,m3){
   conjunto_validacao <- df |>
     as_tibble() |>
-    sample_n(300)
+    sample_n(500)
   coordinates(conjunto_validacao) = ~x + y
   modelos<-list(m1,m2,m3)
   for(j in 1:3){
