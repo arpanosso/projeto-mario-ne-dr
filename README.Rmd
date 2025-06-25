@@ -458,7 +458,7 @@ map(var_names, ~{
 
 ## 3. Análise e modelagem geoestatística (2016, 2017 e 2018) por UNIDADE.
 
-### Separando o banco de dados (CAT) e transformar se necessário
+### Separando o banco de dados para unidade CAT e transformar se necessário
 
 ```{r}
 ano_analise <- 2016
@@ -476,12 +476,13 @@ data_set_aux <- data_set |>
     .groups = "drop"
   )
 glimpse(data_set_aux)
+writexl::write_xlsx(data_set_aux,"data_set_aux.xlsx")
 ```
 
 ### Transformar se necessário
 
 ```{r}
-sp::coordinates(data_set_aux) = ~ x + y  
+coordinates(data_set_aux) = ~ x + y  
 form <- z ~ 1 # fórmula da função variogram
 ```
 
@@ -489,7 +490,7 @@ form <- z ~ 1 # fórmula da função variogram
 Construir o semivariograma experimental
 
 ```{r}
-vari_exp <- gstat::variogram(form, data = data_set_aux,
+vari_exp <- variogram(form, data = data_set_aux,
                       cressie = FALSE,
                       cutoff = 0.10, # distância máxima do semivariograma
                       width = .008) # distância entre pontos
@@ -510,7 +511,6 @@ modelo_2 <- fit.variogram(vari_exp,vgm(patamar,"Exp",alcance,epepita))
 modelo_3 <- fit.variogram(vari_exp,vgm(patamar,"Gau",alcance,epepita))
 plot_my_models(modelo_1,modelo_2,modelo_3)
 ```
-
 ### Validação Cruzada
 ```{r}
 my_cross_validation(data_set_aux,form,modelo_1,modelo_2,modelo_3)
@@ -564,12 +564,6 @@ Utilizando o algorítmo de KO, vamos estimar xco2 nos locais não amostrados.
 
 
 ```{r}
-def_pol <- function(x, y, pol){
-  as.logical(sp::point.in.polygon(point.x = x,
-                                  point.y = y,
-                                  pol.x = pol[,1],
-                                  pol.y = pol[,2]))
-}
 x<-data_set_aux$x
 y<-data_set_aux$y
 dis <- 0.005 #Distância entre pontos
@@ -594,7 +588,7 @@ ko_variavel <- krige(formula=form, data_set_aux, grid, model=modelo,
 Mapa de padrão espacial
 
 ```{r}
-mapa <- as.tibble(ko_variavel) |> 
+mapa <- as_tibble(ko_variavel) |> 
   ggplot(aes(x=X, y=Y)) + 
   geom_tile(aes(fill = var1.pred)) +
   # scale_fill_gradient(low = "yellow", high = "blue") + 
@@ -623,5 +617,162 @@ write_rds(df,paste0("output/krigagem/estimativa-",ano_analise,"-",
                    unidade_analise,"-",variavel,".rds"))
 ```
 
+### Separando o banco de dados para unidade POT e transformar se necessário
 
+```{r}
+ano_analise <- 2016
+variavel <- "TCH"
+unidade_analise <- "POT"
+data_set_aux <- data_set |> 
+  filter(
+    ano == ano_analise,
+    unidade == unidade_analise) |> 
+  select(x,y,variavel) |> 
+  rename(z = !!sym(variavel)) |> 
+  group_by(x,y) |> 
+  summarise(
+    z = mean(z,na.rm = TRUE),
+    .groups = "drop"
+  )
+glimpse(data_set_aux)
+writexl::write_xlsx(data_set_aux,"data_set_aux.xlsx")
+```
+
+### Transformar se necessário
+
+```{r}
+coordinates(data_set_aux) = ~ x + y  
+form <- z ~ 1 # fórmula da função variogram
+```
+
+
+Construir o semivariograma experimental
+
+```{r}
+vari_exp <- variogram(form, data = data_set_aux,
+                      cressie = FALSE,
+                      cutoff = 0.10, # distância máxima do semivariograma
+                      width = .008) # distância entre pontos
+vari_exp  |>  
+ ggplot(aes(x=dist, y=gamma)) +
+ geom_point() +
+ labs(x="lag (º)",
+      y=expression(paste(gamma,"(h)")))
+```
+## Escolher o melhor modelo
+
+```{r}
+patamar=600
+alcance=0.02
+epepita=0
+modelo_1 <- fit.variogram(vari_exp,vgm(patamar,"Sph",alcance,epepita))
+modelo_2 <- fit.variogram(vari_exp,vgm(patamar,"Exp",alcance,epepita))
+modelo_3 <- fit.variogram(vari_exp,vgm(patamar,"Gau",alcance,epepita))
+plot_my_models(modelo_1,modelo_2,modelo_3)
+```
+### Validação Cruzada
+```{r}
+my_cross_validation(data_set_aux,form,modelo_1,modelo_2,modelo_3)
+```
+### Escolha do melhor modelo
+
+O melhor modelo é aquele que apresenta um coeficiente de regressão o mais próximo de $1$ e o intercepto o mais próximo de $0$, com o menor RMSE possível.
+
+#### Definido o melhor modelo, precisamos guardar os valores.
+
+```{r}
+modelo <- modelo_2 ## sempre modificar
+model <- modelo |> slice(2) |> pull(model)
+rss <- round(attr(modelo, "SSErr"),4)
+c0 <- round(modelo$psill[[1]],4)
+c0_c1 <- round(sum(modelo$psill),4)
+a <- ifelse(model == "Gau", round(modelo$range[[2]]*(3^.5),2),
+            ifelse(model == "Exp",round(3*modelo$range[[2]],2),
+            round(modelo$range[[2]],2)))
+r2 <- vari_exp |> add_column( model = model, a=a, c0 = c0,
+                                  c0_c1 = c0_c1) |>
+    mutate(
+      gamma_m = ifelse(model == "Sph",
+        ifelse(dist <= a, c0 + (c0_c1 - c0) * (3/2 * (dist/a) - 1/2 * (dist/a)^3),c0_c1), ifelse(model == "Exp", c0 + (c0_c1-c0)*(1-exp(-3*(dist/a))),c0 + (c0_c1-c0)*(1-exp(-3*(dist/a)^2)))),
+      residuo_total = (gamma-mean(gamma))^2,
+      residuo_mod = (gamma - gamma_m)^2
+    ) |>
+    summarise(
+      r2=(sum(residuo_total) - sum(residuo_mod))/sum(residuo_total)
+    ) |> pull(r2)
+
+tibble(
+  ano_analise, unidade_analise, variavel, model, c0, c0_c1, a, rss, r2
+) |> mutate(gde = c0/c0_c1, .after = "a") |>
+  write_csv(paste0("output/best-fit/",ano_analise,"-",
+                   unidade_analise,"-",variavel,".csv"))
+
+ls_csv <- list.files("output/best-fit/",full.names = TRUE,pattern = ".csv")
+map_df(ls_csv, read_csv) |>
+  writexl::write_xlsx("output/semivariogram-models.xlsx")
+png(filename = paste0("output/semivariogram-img/semivar-",
+                      ano_analise,"-",
+                   unidade_analise,"-",variavel,".png"),
+    width = 800, height = 600)
+plot(vari_exp,model=modelo,cex.lab=2, col=1,pl=F,pch=16,cex=2.2,ylab=list("Semivariância",cex=2.3),xlab=list("Distância de Separação h (m)",cex=2.3,cex.axis=4))
+dev.off()
+```
+
+### Krigragem ordinária (KO)
+Utilizando o algorítmo de KO, vamos estimar  nos locais não amostrados.
+
+
+```{r}
+x<-data_set_aux$x
+y<-data_set_aux$y
+dis <- 0.005 #Distância entre pontos
+grid <- expand.grid(X=seq(min(x),max(x),dis), Y=seq(min(y),max(y),dis)) |> 
+    mutate(flag = def_pol(X,Y,contorno_pot)) |>  
+  filter(flag) |> select(-flag)
+gridded(grid) = ~ X + Y
+plot(grid) 
+points(x,y,col="red",pch=4)
+```
+
+
+```{r}
+ko_variavel <- krige(formula=form, data_set_aux, grid, model=modelo, 
+    block=c(0,0),
+    nsim=0,
+    na.action=na.pass,
+    debug.level=-1,  
+    )
+```
+
+Mapa de padrão espacial
+
+```{r}
+mapa <- as_tibble(ko_variavel) |> 
+  ggplot(aes(x=X, y=Y)) + 
+  geom_tile(aes(fill = var1.pred)) +
+  # scale_fill_gradient(low = "yellow", high = "blue") + 
+  scale_fill_viridis_c() +
+  coord_equal() + 
+  labs(fill=variavel,
+       x="Longitude",
+       y="Latitude")
+mapa
+ggsave(paste0("output/krigagem/krg-",ano_analise,"-",
+                   unidade_analise,"-",variavel,".png"))
+```
+
+
+### Salvando o arquivo krigado
+
+```{r}
+df <- ko_variavel |> 
+  as.tibble() |> 
+  mutate(var1.var = sqrt(var1.var)) |> 
+  rename(
+    !!variavel := var1.pred,
+    !!paste0(variavel,"_sd") := var1.var,
+  )
+write_rds(df,paste0("output/krigagem/estimativa-",ano_analise,"-",
+                   unidade_analise,"-",variavel,".rds"))
+```
 ## 4. Aprendizado de máquina com validação final a partir dos dados de 2018 e por UNIDADE

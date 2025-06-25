@@ -1574,7 +1574,7 @@ map(var_names, ~{
 
 ## 3. Análise e modelagem geoestatística (2016, 2017 e 2018) por UNIDADE.
 
-### Separando o banco de dados (CAT) e transformar se necessário
+### Separando o banco de dados para unidade CAT e transformar se necessário
 
 ``` r
 ano_analise <- 2016
@@ -1597,19 +1597,20 @@ glimpse(data_set_aux)
 #> $ x <dbl> -49.29976, -49.29920, -49.29879, -49.29791, -49.29754, -49.29691, -4…
 #> $ y <dbl> -20.93966, -20.93773, -20.93591, -20.93728, -20.94069, -20.88295, -2…
 #> $ z <dbl> 71.000, 71.000, 71.200, 71.200, 71.000, 71.515, 99.515, 102.675, 102…
+writexl::write_xlsx(data_set_aux,"data_set_aux.xlsx")
 ```
 
 ### Transformar se necessário
 
 ``` r
-sp::coordinates(data_set_aux) = ~ x + y  
+coordinates(data_set_aux) = ~ x + y  
 form <- z ~ 1 # fórmula da função variogram
 ```
 
 Construir o semivariograma experimental
 
 ``` r
-vari_exp <- gstat::variogram(form, data = data_set_aux,
+vari_exp <- variogram(form, data = data_set_aux,
                       cressie = FALSE,
                       cutoff = 0.10, # distância máxima do semivariograma
                       width = .008) # distância entre pontos
@@ -1634,8 +1635,7 @@ plot_my_models(modelo_1,modelo_2,modelo_3)
 ```
 
 ![](README_files/figure-gfm/unnamed-chunk-26-1.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-26-2.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-26-3.png)<!-- -->
-
-### Validação Cruzada
+\### Validação Cruzada
 
 ``` r
 my_cross_validation(data_set_aux,form,modelo_1,modelo_2,modelo_3)
@@ -2551,8 +2551,8 @@ my_cross_validation(data_set_aux,form,modelo_1,modelo_2,modelo_3)
 do melhor modelo
 
 O melhor modelo é aquele que apresenta um coeficiente de regressão o
-mais próximo de $1$ e o intercepto o mais próximo de $0$, com o menor
-RMSE possível.
+mais próximo de $`1`$ e o intercepto o mais próximo de $`0`$, com o
+menor RMSE possível.
 
 #### Definido o melhor modelo, precisamos guardar os valores.
 
@@ -2602,12 +2602,6 @@ Utilizando o algorítmo de KO, vamos estimar xco2 nos locais não
 amostrados.
 
 ``` r
-def_pol <- function(x, y, pol){
-  as.logical(sp::point.in.polygon(point.x = x,
-                                  point.y = y,
-                                  pol.x = pol[,1],
-                                  pol.y = pol[,2]))
-}
 x<-data_set_aux$x
 y<-data_set_aux$y
 dis <- 0.005 #Distância entre pontos
@@ -2629,13 +2623,13 @@ ko_variavel <- krige(formula=form, data_set_aux, grid, model=modelo,
     debug.level=-1,  
     )
 #> [using ordinary kriging]
-#>   0% done  1% done  2% done  3% done  4% done  5% done  6% done  7% done  8% done  9% done 10% done 11% done 12% done 13% done 14% done 15% done 16% done 17% done 18% done 19% done 20% done 21% done 22% done 23% done 24% done 25% done 26% done 27% done 28% done 29% done 30% done 31% done 32% done 33% done 34% done 35% done 36% done 37% done 38% done 39% done 40% done 41% done 42% done 43% done 44% done 45% done 46% done 47% done 48% done 49% done 50% done 51% done 52% done 53% done 54% done 55% done 56% done 57% done 58% done 59% done 60% done 61% done 62% done 63% done 64% done 65% done 66% done 67% done 68% done 69% done 70% done 71% done 72% done 73% done 74% done 75% done 76% done 77% done 78% done 79% done 80% done 81% done 82% done 83% done 84% done 85% done 86% done 87% done 88% done 89% done 90% done 91% done 92% done 93% done 94% done 95% done 96% done 97% done 98% done 99% done100% done
+#>   0% done  1% done  2% done  3% done  4% done  5% done  6% done  7% done  8% done 10% done 11% done 12% done 13% done 15% done 16% done 17% done 18% done 19% done 21% done 22% done 23% done 24% done 26% done 27% done 28% done 29% done 30% done 31% done 32% done 33% done 34% done 35% done 36% done 37% done 38% done 39% done 40% done 41% done 42% done 43% done 44% done 45% done 46% done 47% done 48% done 49% done 50% done 51% done 52% done 53% done 54% done 55% done 56% done 57% done 58% done 59% done 60% done 61% done 62% done 63% done 64% done 65% done 66% done 67% done 68% done 69% done 70% done 71% done 72% done 73% done 74% done 75% done 76% done 77% done 78% done 79% done 80% done 81% done 82% done 83% done 84% done 85% done 86% done 87% done 88% done 89% done 90% done 91% done 92% done 93% done 94% done 95% done 96% done 97% done 98% done 99% done100% done
 ```
 
 Mapa de padrão espacial
 
 ``` r
-mapa <- as.tibble(ko_variavel) |> 
+mapa <- as_tibble(ko_variavel) |> 
   ggplot(aes(x=X, y=Y)) + 
   geom_tile(aes(fill = var1.pred)) +
   # scale_fill_gradient(low = "yellow", high = "blue") + 
@@ -2648,6 +2642,1093 @@ mapa
 ```
 
 ![](README_files/figure-gfm/unnamed-chunk-31-1.png)<!-- -->
+
+``` r
+ggsave(paste0("output/krigagem/krg-",ano_analise,"-",
+                   unidade_analise,"-",variavel,".png"))
+```
+
+### Salvando o arquivo krigado
+
+``` r
+df <- ko_variavel |> 
+  as.tibble() |> 
+  mutate(var1.var = sqrt(var1.var)) |> 
+  rename(
+    !!variavel := var1.pred,
+    !!paste0(variavel,"_sd") := var1.var,
+  )
+write_rds(df,paste0("output/krigagem/estimativa-",ano_analise,"-",
+                   unidade_analise,"-",variavel,".rds"))
+```
+
+### Separando o banco de dados para unidade POT e transformar se necessário
+
+``` r
+ano_analise <- 2016
+variavel <- "TCH"
+unidade_analise <- "POT"
+data_set_aux <- data_set |> 
+  filter(
+    ano == ano_analise,
+    unidade == unidade_analise) |> 
+  select(x,y,variavel) |> 
+  rename(z = !!sym(variavel)) |> 
+  group_by(x,y) |> 
+  summarise(
+    z = mean(z,na.rm = TRUE),
+    .groups = "drop"
+  )
+glimpse(data_set_aux)
+#> Rows: 5,827
+#> Columns: 3
+#> $ x <dbl> -49.72548, -49.72380, -49.72153, -49.72151, -49.72042, -49.71966, -4…
+#> $ y <dbl> -20.86486, -20.86425, -20.86496, -20.86313, -20.86219, -20.86392, -2…
+#> $ z <dbl> 117.1500, 117.1500, 117.1500, 117.1500, 117.1300, 117.1500, 117.1300…
+writexl::write_xlsx(data_set_aux,"data_set_aux.xlsx")
+```
+
+### Transformar se necessário
+
+``` r
+coordinates(data_set_aux) = ~ x + y  
+form <- z ~ 1 # fórmula da função variogram
+```
+
+Construir o semivariograma experimental
+
+``` r
+vari_exp <- variogram(form, data = data_set_aux,
+                      cressie = FALSE,
+                      cutoff = 0.10, # distância máxima do semivariograma
+                      width = .008) # distância entre pontos
+vari_exp  |>  
+ ggplot(aes(x=dist, y=gamma)) +
+ geom_point() +
+ labs(x="lag (º)",
+      y=expression(paste(gamma,"(h)")))
+```
+
+![](README_files/figure-gfm/unnamed-chunk-35-1.png)<!-- --> \## Escolher
+o melhor modelo
+
+``` r
+patamar=600
+alcance=0.02
+epepita=0
+modelo_1 <- fit.variogram(vari_exp,vgm(patamar,"Sph",alcance,epepita))
+modelo_2 <- fit.variogram(vari_exp,vgm(patamar,"Exp",alcance,epepita))
+modelo_3 <- fit.variogram(vari_exp,vgm(patamar,"Gau",alcance,epepita))
+plot_my_models(modelo_1,modelo_2,modelo_3)
+```
+
+![](README_files/figure-gfm/unnamed-chunk-36-1.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-36-2.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-36-3.png)<!-- -->
+\### Validação Cruzada
+
+``` r
+my_cross_validation(data_set_aux,form,modelo_1,modelo_2,modelo_3)
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+#> [using ordinary kriging]
+```
+
+![](README_files/figure-gfm/unnamed-chunk-37-1.png)<!-- -->
+
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+
+![](README_files/figure-gfm/unnamed-chunk-37-2.png)<!-- -->
+
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+    #> [using ordinary kriging]
+
+![](README_files/figure-gfm/unnamed-chunk-37-3.png)<!-- --> \### Escolha
+do melhor modelo
+
+O melhor modelo é aquele que apresenta um coeficiente de regressão o
+mais próximo de $`1`$ e o intercepto o mais próximo de $`0`$, com o
+menor RMSE possível.
+
+#### Definido o melhor modelo, precisamos guardar os valores.
+
+``` r
+modelo <- modelo_2 ## sempre modificar
+model <- modelo |> slice(2) |> pull(model)
+rss <- round(attr(modelo, "SSErr"),4)
+c0 <- round(modelo$psill[[1]],4)
+c0_c1 <- round(sum(modelo$psill),4)
+a <- ifelse(model == "Gau", round(modelo$range[[2]]*(3^.5),2),
+            ifelse(model == "Exp",round(3*modelo$range[[2]],2),
+            round(modelo$range[[2]],2)))
+r2 <- vari_exp |> add_column( model = model, a=a, c0 = c0,
+                                  c0_c1 = c0_c1) |>
+    mutate(
+      gamma_m = ifelse(model == "Sph",
+        ifelse(dist <= a, c0 + (c0_c1 - c0) * (3/2 * (dist/a) - 1/2 * (dist/a)^3),c0_c1), ifelse(model == "Exp", c0 + (c0_c1-c0)*(1-exp(-3*(dist/a))),c0 + (c0_c1-c0)*(1-exp(-3*(dist/a)^2)))),
+      residuo_total = (gamma-mean(gamma))^2,
+      residuo_mod = (gamma - gamma_m)^2
+    ) |>
+    summarise(
+      r2=(sum(residuo_total) - sum(residuo_mod))/sum(residuo_total)
+    ) |> pull(r2)
+
+tibble(
+  ano_analise, unidade_analise, variavel, model, c0, c0_c1, a, rss, r2
+) |> mutate(gde = c0/c0_c1, .after = "a") |>
+  write_csv(paste0("output/best-fit/",ano_analise,"-",
+                   unidade_analise,"-",variavel,".csv"))
+
+ls_csv <- list.files("output/best-fit/",full.names = TRUE,pattern = ".csv")
+map_df(ls_csv, read_csv) |>
+  writexl::write_xlsx("output/semivariogram-models.xlsx")
+png(filename = paste0("output/semivariogram-img/semivar-",
+                      ano_analise,"-",
+                   unidade_analise,"-",variavel,".png"),
+    width = 800, height = 600)
+plot(vari_exp,model=modelo,cex.lab=2, col=1,pl=F,pch=16,cex=2.2,ylab=list("Semivariância",cex=2.3),xlab=list("Distância de Separação h (m)",cex=2.3,cex.axis=4))
+dev.off()
+#> png 
+#>   2
+```
+
+### Krigragem ordinária (KO)
+
+Utilizando o algorítmo de KO, vamos estimar nos locais não amostrados.
+
+``` r
+x<-data_set_aux$x
+y<-data_set_aux$y
+dis <- 0.005 #Distância entre pontos
+grid <- expand.grid(X=seq(min(x),max(x),dis), Y=seq(min(y),max(y),dis)) |> 
+    mutate(flag = def_pol(X,Y,contorno_pot)) |>  
+  filter(flag) |> select(-flag)
+gridded(grid) = ~ X + Y
+plot(grid) 
+points(x,y,col="red",pch=4)
+```
+
+![](README_files/figure-gfm/unnamed-chunk-39-1.png)<!-- -->
+
+``` r
+ko_variavel <- krige(formula=form, data_set_aux, grid, model=modelo, 
+    block=c(0,0),
+    nsim=0,
+    na.action=na.pass,
+    debug.level=-1,  
+    )
+#> [using ordinary kriging]
+#>   0% done  1% done  2% done  3% done  4% done  5% done  6% done  7% done  8% done  9% done 10% done 11% done 12% done 13% done 14% done 15% done 16% done 17% done 18% done 19% done 20% done 21% done 22% done 23% done 24% done 25% done 26% done 27% done 28% done 29% done 30% done 31% done 32% done 33% done 34% done 35% done 36% done 37% done 38% done 39% done 40% done 41% done 42% done 43% done 44% done 45% done 46% done 47% done 48% done 49% done 50% done 51% done 52% done 53% done 54% done 55% done 56% done 57% done 58% done 59% done 60% done 61% done 62% done 63% done 64% done 65% done 66% done 67% done 68% done 69% done 70% done 71% done 72% done 73% done 74% done 75% done 76% done 77% done 78% done 79% done 80% done 81% done 82% done 83% done 84% done 85% done 86% done 87% done 88% done 89% done 90% done 91% done 92% done 93% done 94% done 95% done 96% done 97% done 98% done 99% done100% done
+```
+
+Mapa de padrão espacial
+
+``` r
+mapa <- as_tibble(ko_variavel) |> 
+  ggplot(aes(x=X, y=Y)) + 
+  geom_tile(aes(fill = var1.pred)) +
+  # scale_fill_gradient(low = "yellow", high = "blue") + 
+  scale_fill_viridis_c() +
+  coord_equal() + 
+  labs(fill=variavel,
+       x="Longitude",
+       y="Latitude")
+mapa
+```
+
+![](README_files/figure-gfm/unnamed-chunk-41-1.png)<!-- -->
 
 ``` r
 ggsave(paste0("output/krigagem/krg-",ano_analise,"-",

@@ -1,15 +1,29 @@
 
+# função para verificar se um ponto pertence a um polígono ----------------
+def_pol <- function(x, y, pol){
+  as.logical(point.in.polygon(point.x = x,
+                              point.y = y,
+                              pol.x = pol[,1],
+                              pol.y = pol[,2]))
+}
+
 # função para plotar diferentes modelos -----------------------------------
 plot_my_models <- function(modelo_1,modelo_2,modelo_3){
-  sqr.f1<-round(attr(modelo_1, "SSErr"),4); c01<-round(modelo_1$psill[[1]],4); c0_c11<-round(sum(modelo_1$psill),4);a1<-round(modelo_1$range[[2]],2)
-  sqr.f2<-round(attr(modelo_2, "SSErr"),4); c02<-round(modelo_2$psill[[1]],4); c0_c12<-round(sum(modelo_2$psill),4);a2<-round(3*modelo_2$range[[2]],2)
-  sqr.f3<-round(attr(modelo_3, "SSErr"),4); c03<-round(modelo_3$psill[[1]],4); c0_c13<-round(sum(modelo_3$psill),4);a3<-round(modelo_3$range[[2]]*(3^.5),2)
+  sqr.f1<-round(attr(modelo_1, "SSErr"),4);
+  c01<-round(modelo_1$psill[[1]],4); c0_c11<-round(sum(modelo_1$psill),4);
+  a1<-round(modelo_1$range[[2]],2)
+  sqr.f2<-round(attr(modelo_2, "SSErr"),4);
+  c02<-round(modelo_2$psill[[1]],4); c0_c12<-round(sum(modelo_2$psill),4);
+  a2<-round(3*modelo_2$range[[2]],2)
+  sqr.f3<-round(attr(modelo_3, "SSErr"),4);
+  c03<-round(modelo_3$psill[[1]],4); c0_c13<-round(sum(modelo_3$psill),4);
+  a3<-round(modelo_3$range[[2]]*(3^.5),2)
 
   df_aux <- vari_exp |>
     mutate(
       gamma_m1 = ifelse(dist <= a1, c01 + (c0_c11-c01)*(3/2*(dist/a1)-1/2*(dist/a1)^3),c0_c11),
       gamma_m2 = c02 + (c0_c12-c02)*(1-exp(-3*(dist/a2))),
-      gamma_m3 = c03 + (c0_c13-c03)*(1-exp(-(dist/a3)^2)),
+      gamma_m3 = c03 + (c0_c13-c03)*(1-exp(-(dist*dist/a3/a3))),
       residuo_total = (gamma-mean(gamma))^2,
       residuo_mod_1 = (gamma - gamma_m1)^2,
       residuo_mod_2 = (gamma - gamma_m2)^2,
