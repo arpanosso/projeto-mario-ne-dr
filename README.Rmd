@@ -82,16 +82,16 @@ estat_names <- c("n","Min","Q1","Med","Média","Q3",
 Tabela de estatística descritiva presente no arquivo do excel na pasta `output`.
 
 ```{r}
-data_set |> 
-  group_by(ano,unidade) |> 
-  reframe(
-    across(.cols = TCH:S,
-           .fns = estat_desc,
-           .names = "{.col}")
-  )|> 
-  add_column(estatistica = rep(estat_names,2*3)) |> 
-  relocate(estatistica) |> 
-  writexl::write_xlsx("output/estat-desc.xlsx")
+# data_set |> 
+#   group_by(ano,unidade) |> 
+#   reframe(
+#     across(.cols = TCH:S,
+#            .fns = estat_desc,
+#            .names = "{.col}")
+#   )|> 
+#   add_column(estatistica = rep(estat_names,2*3)) |> 
+#   relocate(estatistica) |> 
+#   writexl::write_xlsx("output/estat-desc.xlsx")
 ```
 
 Boxplot para comparação
@@ -310,6 +310,8 @@ bi_plot_2 +
     ylim = c(-3,8)
   )
 ```
+
+
 ```{r}
 print("==== Tabela da correlação dos atributos com cada PC ====")
     ck<-sum(pca$sdev^2>=0.98)
@@ -319,8 +321,8 @@ print("==== Tabela da correlação dos atributos com cada PC ====")
     pcat<-round(tabelapca,3)
     tabelapca<-tabelapca[order(abs(tabelapca[,1])),]
     print(tabelapca)
-writexl::write_xlsx(data.frame(tabelapca) |> 
-                      add_column(nome = row.names(tabelapca)) |> 
+writexl::write_xlsx(data.frame(tabelapca) |>
+                      add_column(nome = row.names(tabelapca)) |>
                       relocate(nome), "output/pca-table.xlsx")
 ```
 
@@ -340,6 +342,43 @@ writexl::write_xlsx(data.frame(tabelapca) |>
   scale_shape_manual(values=16:18)+
   scale_color_manual(values=c("#009E73", "#999999","#D55E00")) 
 ```
+```{r}
+data_set |> 
+  group_by(x,y) |> 
+  summarise(
+    across(.cols = TCH:S,
+           .fns = mean,
+           .names = "{.col}"),
+    .groups = "drop"
+  )|> 
+  add_column(grupo) |> 
+  select(x,y,grupo) |> 
+  left_join(
+    data_set |> 
+  group_by(unidade,x,y) |> 
+  summarise(
+    across(.cols = TCH:S,
+           .fns = mean,
+           .names = "{.col}"),
+    .groups = "drop"),
+    by = c("x","y")
+  ) |> 
+  mutate(
+    unidade = as.factor(unidade),
+    grupo = as.factor(grupo)) |> 
+  group_by(unidade, grupo) |> 
+  summarise(
+    n = n()
+  ) |> 
+  ggplot(aes(x=unidade,y=n,fill=grupo)) +
+  geom_col(color="black") +
+  scale_fill_viridis_d(option = "magma")
+
+```
+
+
+
+
 ```{r}
 data_set |> 
   group_by(unidade,x,y) |> 
@@ -391,6 +430,7 @@ ggplot(contorno_pot, aes(x = x, y = y)) +
   coord_equal() +  # Mantém proporção real dos eixos
   theme_minimal()
 ```
+
 #### Malha refinada para estimativa em POT
 ```{r}
 x<-contorno_pot$x
@@ -403,6 +443,7 @@ gridded(grid_pot) = ~ X + Y
 plot(grid_pot) 
 points(x,y,col="red",pch=4)
 ```
+
 #### Contorno para CAT  
 
 ```{r}
@@ -436,6 +477,7 @@ ggplot(contorno_cat, aes(x = x, y = y)) +
   coord_equal() +  # Mantém proporção real dos eixos
   theme_minimal()
 ```
+
 #### Malha refinada para estimativa em CAT
 ```{r}
 x<-contorno_cat$x
@@ -546,7 +588,7 @@ plot_my_models(modelo_1,modelo_2,modelo_3)
 
 #### Validação Cruzada
 ```{r}
-my_cross_validation(data_set_aux,form,modelo_1,modelo_2,modelo_3)
+# my_cross_validation(data_set_aux,form,modelo_1,modelo_2,modelo_3)
 ```
 #### Seleção do melhor modelo
 
@@ -561,40 +603,40 @@ modelo <- modelo_2 ## sempre modificar
 Salvamos os parâmetros, e a figura o semivariograma + modelo ajustado
 
 ```{r}
-model <- modelo |> slice(2) |> pull(model)
-rss <- round(attr(modelo, "SSErr"),4)
-c0 <- round(modelo$psill[[1]],4)
-c0_c1 <- round(sum(modelo$psill),4)
-a <- ifelse(model == "Gau", round(modelo$range[[2]]*(3^.5),2),
-            ifelse(model == "Exp",round(3*modelo$range[[2]],2),
-            round(modelo$range[[2]],2)))
-r2 <- vari_exp |> add_column( model = model, a=a, c0 = c0,
-                                  c0_c1 = c0_c1) |>
-    mutate(
-      gamma_m = ifelse(model == "Sph",
-        ifelse(dist <= a, c0 + (c0_c1 - c0) * (3/2 * (dist/a) - 1/2 * (dist/a)^3),c0_c1), ifelse(model == "Exp", c0 + (c0_c1-c0)*(1-exp(-3*(dist/a))),c0 + (c0_c1-c0)*(1-exp(-(dist/a)^2)))),
-      residuo_total = (gamma-mean(gamma))^2,
-      residuo_mod = (gamma - gamma_m)^2
-    ) |>
-    summarise(
-      r2=(sum(residuo_total) - sum(residuo_mod))/sum(residuo_total)
-    ) |> pull(r2)
-
-tibble(
-  ano_analise, unidade_analise, variavel, model, c0, c0_c1, a, rss, r2
-) |> mutate(gde = c0/c0_c1, .after = "a") |>
-  write_csv(paste0("output/best-fit/",ano_analise,"-",
-                   unidade_analise,"-",str_remove(variavel,"%"),".csv"))
-
-ls_csv <- list.files("output/best-fit/",full.names = TRUE,pattern = ".csv")
-map_df(ls_csv, read_csv) |>
-  writexl::write_xlsx("output/semivariogram-models.xlsx")
-png(filename = paste0("output/semivariogram-img/semivar-",
-                      ano_analise,"-",
-                   unidade_analise,"-",str_remove(variavel,"%"),".png"),
-    width = 800, height = 600)
-plot(vari_exp,model=modelo,cex.lab=2, col=1,pl=F,pch=16,cex=2.2,ylab=list("Semivariância",cex=2.3),xlab=list("Distância de Separação h (m)",cex=2.3,cex.axis=4))
-dev.off()
+# model <- modelo |> slice(2) |> pull(model)
+# rss <- round(attr(modelo, "SSErr"),4)
+# c0 <- round(modelo$psill[[1]],4)
+# c0_c1 <- round(sum(modelo$psill),4)
+# a <- ifelse(model == "Gau", round(modelo$range[[2]]*(3^.5),2),
+#             ifelse(model == "Exp",round(3*modelo$range[[2]],2),
+#             round(modelo$range[[2]],2)))
+# r2 <- vari_exp |> add_column( model = model, a=a, c0 = c0,
+#                                   c0_c1 = c0_c1) |>
+#     mutate(
+#       gamma_m = ifelse(model == "Sph",
+#         ifelse(dist <= a, c0 + (c0_c1 - c0) * (3/2 * (dist/a) - 1/2 * (dist/a)^3),c0_c1), ifelse(model == "Exp", c0 + (c0_c1-c0)*(1-exp(-3*(dist/a))),c0 + (c0_c1-c0)*(1-exp(-(dist/a)^2)))),
+#       residuo_total = (gamma-mean(gamma))^2,
+#       residuo_mod = (gamma - gamma_m)^2
+#     ) |>
+#     summarise(
+#       r2=(sum(residuo_total) - sum(residuo_mod))/sum(residuo_total)
+#     ) |> pull(r2)
+# 
+# tibble(
+#   ano_analise, unidade_analise, variavel, model, c0, c0_c1, a, rss, r2
+# ) |> mutate(gde = c0/c0_c1, .after = "a") |>
+#   write_csv(paste0("output/best-fit/",ano_analise,"-",
+#                    unidade_analise,"-",str_remove(variavel,"%"),".csv"))
+# 
+# ls_csv <- list.files("output/best-fit/",full.names = TRUE,pattern = ".csv")
+# map_df(ls_csv, read_csv) |>
+#   writexl::write_xlsx("output/semivariogram-models.xlsx")
+# png(filename = paste0("output/semivariogram-img/semivar-",
+#                       ano_analise,"-",
+#                    unidade_analise,"-",str_remove(variavel,"%"),".png"),
+#     width = 800, height = 600)
+# plot(vari_exp,model=modelo,cex.lab=2, col=1,pl=F,pch=16,cex=2.2,ylab=list("Semivariância",cex=2.3),xlab=list("Distância de Separação h (m)",cex=2.3,cex.axis=4))
+# dev.off()
 ```
 
 #### Krigragem ordinária (KO)
@@ -602,41 +644,41 @@ dev.off()
 Estimar o atributo para locais não amostrados.
 
 ```{r}
-ko_variavel <- krige(formula=form, data_set_aux, grid_cat, model=modelo, 
-    block=c(0,0),
-    nsim=0,
-    na.action=na.pass,
-    debug.level=-1,  
-    )
+# ko_variavel <- krige(formula=form, data_set_aux, grid_cat, model=modelo, 
+#     block=c(0,0),
+#     nsim=0,
+#     na.action=na.pass,
+#     debug.level=-1,  
+#     )
 ```
 
 #### Salva o mapa e os valores estimados
 
 ```{r}
-mapa <- as_tibble(ko_variavel) |> 
-  ggplot(aes(x=X, y=Y)) + 
-  geom_tile(aes(fill = var1.pred)) +
-  # scale_fill_gradient(low = "yellow", high = "blue") + 
-  scale_fill_viridis_c() +
-  coord_equal() + 
-  labs(fill=variavel,
-       x="Longitude",
-       y="Latitude")
-mapa
-ggsave(paste0("output/krigagem/krg-",ano_analise,"-",
-                   unidade_analise,"-",str_remove(variavel,"%"),".png"))
+# mapa <- as_tibble(ko_variavel) |> 
+#   ggplot(aes(x=X, y=Y)) + 
+#   geom_tile(aes(fill = var1.pred)) +
+#   # scale_fill_gradient(low = "yellow", high = "blue") + 
+#   scale_fill_viridis_c() +
+#   coord_equal() + 
+#   labs(fill=variavel,
+#        x="Longitude",
+#        y="Latitude")
+# mapa
+# ggsave(paste0("output/krigagem/krg-",ano_analise,"-",
+#                    unidade_analise,"-",str_remove(variavel,"%"),".png"))
 ```
 
 ```{r}
-df <- ko_variavel |> 
-  as_tibble() |> 
-  mutate(var1.var = sqrt(var1.var)) |> 
-  rename(
-    !!variavel := var1.pred,
-    !!paste0(variavel,"_sd") := var1.var,
-  )
-write_rds(df,paste0("output/krigagem/estimativa-",ano_analise,"-",
-                   unidade_analise,"-",str_remove(variavel,"%"),".rds"))
+# df <- ko_variavel |> 
+#   as_tibble() |> 
+#   mutate(var1.var = sqrt(var1.var)) |> 
+#   rename(
+#     !!variavel := var1.pred,
+#     !!paste0(variavel,"_sd") := var1.var,
+#   )
+# write_rds(df,paste0("output/krigagem/estimativa-",ano_analise,"-",
+#                    unidade_analise,"-",str_remove(variavel,"%"),".rds"))
 ```
 
 
@@ -696,7 +738,7 @@ plot_my_models(modelo_1,modelo_2,modelo_3)
 
 #### Validação Cruzada
 ```{r}
-my_cross_validation(data_set_aux,form,modelo_1,modelo_2,modelo_3)
+# my_cross_validation(data_set_aux,form,modelo_1,modelo_2,modelo_3)
 ```
 #### Seleção do melhor modelo
 
@@ -711,40 +753,40 @@ modelo <- modelo_2 ## sempre modificar
 Salvamos os parâmetros, e a figura o semivariograma + modelo ajustado
 
 ```{r}
-model <- modelo |> slice(2) |> pull(model)
-rss <- round(attr(modelo, "SSErr"),4)
-c0 <- round(modelo$psill[[1]],4)
-c0_c1 <- round(sum(modelo$psill),4)
-a <- ifelse(model == "Gau", round(modelo$range[[2]]*(3^.5),2),
-            ifelse(model == "Exp",round(3*modelo$range[[2]],2),
-            round(modelo$range[[2]],2)))
-r2 <- vari_exp |> add_column( model = model, a=a, c0 = c0,
-                                  c0_c1 = c0_c1) |>
-    mutate(
-      gamma_m = ifelse(model == "Sph",
-        ifelse(dist <= a, c0 + (c0_c1 - c0) * (3/2 * (dist/a) - 1/2 * (dist/a)^3),c0_c1), ifelse(model == "Exp", c0 + (c0_c1-c0)*(1-exp(-3*(dist/a))),c0 + (c0_c1-c0)*(1-exp(-(dist/a)^2)))),
-      residuo_total = (gamma-mean(gamma))^2,
-      residuo_mod = (gamma - gamma_m)^2
-    ) |>
-    summarise(
-      r2=(sum(residuo_total) - sum(residuo_mod))/sum(residuo_total)
-    ) |> pull(r2)
-
-tibble(
-  ano_analise, unidade_analise, variavel, model, c0, c0_c1, a, rss, r2
-) |> mutate(gde = c0/c0_c1, .after = "a") |>
-  write_csv(paste0("output/best-fit/",ano_analise,"-",
-                   unidade_analise,"-",str_remove(variavel,"%"),".csv"))
-
-ls_csv <- list.files("output/best-fit/",full.names = TRUE,pattern = ".csv")
-map_df(ls_csv, read_csv) |>
-  writexl::write_xlsx("output/semivariogram-models.xlsx")
-png(filename = paste0("output/semivariogram-img/semivar-",
-                      ano_analise,"-",
-                   unidade_analise,"-",str_remove(variavel,"%"),".png"),
-    width = 800, height = 600)
-plot(vari_exp,model=modelo,cex.lab=2, col=1,pl=F,pch=16,cex=2.2,ylab=list("Semivariância",cex=2.3),xlab=list("Distância de Separação h (m)",cex=2.3,cex.axis=4))
-dev.off()
+# model <- modelo |> slice(2) |> pull(model)
+# rss <- round(attr(modelo, "SSErr"),4)
+# c0 <- round(modelo$psill[[1]],4)
+# c0_c1 <- round(sum(modelo$psill),4)
+# a <- ifelse(model == "Gau", round(modelo$range[[2]]*(3^.5),2),
+#             ifelse(model == "Exp",round(3*modelo$range[[2]],2),
+#             round(modelo$range[[2]],2)))
+# r2 <- vari_exp |> add_column( model = model, a=a, c0 = c0,
+#                                   c0_c1 = c0_c1) |>
+#     mutate(
+#       gamma_m = ifelse(model == "Sph",
+#         ifelse(dist <= a, c0 + (c0_c1 - c0) * (3/2 * (dist/a) - 1/2 * (dist/a)^3),c0_c1), ifelse(model == "Exp", c0 + (c0_c1-c0)*(1-exp(-3*(dist/a))),c0 + (c0_c1-c0)*(1-exp(-(dist/a)^2)))),
+#       residuo_total = (gamma-mean(gamma))^2,
+#       residuo_mod = (gamma - gamma_m)^2
+#     ) |>
+#     summarise(
+#       r2=(sum(residuo_total) - sum(residuo_mod))/sum(residuo_total)
+#     ) |> pull(r2)
+# 
+# tibble(
+#   ano_analise, unidade_analise, variavel, model, c0, c0_c1, a, rss, r2
+# ) |> mutate(gde = c0/c0_c1, .after = "a") |>
+#   write_csv(paste0("output/best-fit/",ano_analise,"-",
+#                    unidade_analise,"-",str_remove(variavel,"%"),".csv"))
+# 
+# ls_csv <- list.files("output/best-fit/",full.names = TRUE,pattern = ".csv")
+# map_df(ls_csv, read_csv) |>
+#   writexl::write_xlsx("output/semivariogram-models.xlsx")
+# png(filename = paste0("output/semivariogram-img/semivar-",
+#                       ano_analise,"-",
+#                    unidade_analise,"-",str_remove(variavel,"%"),".png"),
+#     width = 800, height = 600)
+# plot(vari_exp,model=modelo,cex.lab=2, col=1,pl=F,pch=16,cex=2.2,ylab=list("Semivariância",cex=2.3),xlab=list("Distância de Separação h (m)",cex=2.3,cex.axis=4))
+# dev.off()
 ```
 
 #### Krigragem ordinária (KO)
@@ -752,41 +794,82 @@ dev.off()
 Estimar o atributo para locais não amostrados.
 
 ```{r}
-ko_variavel <- krige(formula=form, data_set_aux, grid_pot, model=modelo, 
-    block=c(0,0),
-    nsim=0,
-    na.action=na.pass,
-    debug.level=-1,  
-    )
+# ko_variavel <- krige(formula=form, data_set_aux, grid_pot, model=modelo, 
+#     block=c(0,0),
+#     nsim=0,
+#     na.action=na.pass,
+#     debug.level=-1,  
+#     )
 ```
 
 #### Salva o mapa e os valores estimados
 
 ```{r}
-mapa <- as_tibble(ko_variavel) |> 
-  ggplot(aes(x=X, y=Y)) + 
-  geom_tile(aes(fill = var1.pred)) +
-  # scale_fill_gradient(low = "yellow", high = "blue") + 
-  scale_fill_viridis_c() +
-  coord_equal() + 
-  labs(fill=variavel,
-       x="Longitude",
-       y="Latitude")
-mapa
-ggsave(paste0("output/krigagem/krg-",ano_analise,"-",
-                   unidade_analise,"-",str_remove(variavel,"%"),".png"))
+# mapa <- as_tibble(ko_variavel) |> 
+#   ggplot(aes(x=X, y=Y)) + 
+#   geom_tile(aes(fill = var1.pred)) +
+#   # scale_fill_gradient(low = "yellow", high = "blue") + 
+#   scale_fill_viridis_c() +
+#   coord_equal() + 
+#   labs(fill=variavel,
+#        x="Longitude",
+#        y="Latitude")
+# mapa
+# ggsave(paste0("output/krigagem/krg-",ano_analise,"-",
+#                    unidade_analise,"-",str_remove(variavel,"%"),".png"))
 ```
 
 ```{r}
-df <- ko_variavel |> 
-  as_tibble() |> 
-  mutate(var1.var = sqrt(var1.var)) |> 
-  rename(
-    !!variavel := var1.pred,
-    !!paste0(variavel,"_sd") := var1.var,
-  )
-write_rds(df,paste0("output/krigagem/estimativa-",ano_analise,"-",
-                   unidade_analise,"-",str_remove(variavel,"%"),".rds"))
+# df <- ko_variavel |> 
+#   as_tibble() |> 
+#   mutate(var1.var = sqrt(var1.var)) |> 
+#   rename(
+#     !!variavel := var1.pred,
+#     !!paste0(variavel,"_sd") := var1.var,
+#   )
+# write_rds(df,paste0("output/krigagem/estimativa-",ano_analise,"-",
+#                    unidade_analise,"-",str_remove(variavel,"%"),".rds"))
 ```
 
 ## 4. Aprendizado de máquina com validação final a partir dos dados de 2018 e por UNIDADE
+
+#### Compilando os dados de krigagem
+
+```{r}
+kgr_list_files <- list.files("output/krigagem/",
+                             recursive = TRUE,
+                             all.files = TRUE,
+                             pattern = ".rds",
+                             full.names = TRUE)
+
+my_kgr_reader<-function(path){
+  nomes <- read_rds(path) |> names()
+  df_aux <- read_rds(path) |> 
+    mutate(variable = nomes[3],
+           path=path)
+  names(df_aux) <- c("X","Y","value","value_sd","variable","path")
+  
+  df_aux
+};my_kgr_reader(kgr_list_files[1])
+```
+
+
+```{r}
+data_set_kgr <- map_df(kgr_list_files,my_kgr_reader) |> 
+  mutate(
+    ano = as.numeric(str_sub(path,17,20)),
+    unidade = str_sub(path,38,40)
+  )
+write_rds("data_set_kgr","data/data_set_kgr.rds")
+data_set_kgr$unidade |> unique()
+```
+
+
+
+
+
+
+
+
+
+
