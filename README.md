@@ -6,12 +6,17 @@
 ## Carregando pacotes
 
 ``` r
+library(tidymodels)
 library(tidyverse)
 library(ggridges)
-library(vegan)
 library(corrplot)
-library(sp)
+library(modeldata)
+library(ggpubr)
+library(vegan)
 library(gstat)
+library(ISLR)
+library(vip)
+library(sp)
 source("R/my-functions.R")
 theme_set(theme_bw())
 ```
@@ -62,6 +67,8 @@ glimpse(data_set)
 #> $ MO        <dbl> 14.55940, 13.46420, 14.28560, 11.27380, 10.45240, 17.29740, …
 #> $ pH        <dbl> 5.14, 5.03, 4.55, 4.72, 5.07, 5.23, 4.06, 4.99, 4.78, 4.28, …
 #> $ S         <dbl> 11.55523, 14.63704, 12.34360, 18.00553, 7.75672, 9.04678, 7.…
+data_set$ano |> unique()
+#> [1] 2016 2017 2018
 ```
 
 ## 1. Análise Estatística Exploratória
@@ -1647,12 +1654,12 @@ map(var_names, ~{
 
 ![](README_files/figure-gfm/unnamed-chunk-25-13.png)<!-- -->
 
-### 3.3 Análise geoestatística para CAT
+### 3.3 Análise geoestatística CAT
 
 #### Separando o banco e transformar se necessário
 
 ``` r
-ano_analise <- 2016
+ano_analise <- 2018
 variavel <- "m%"
 unidade_analise <- "CAT"
 data_set_aux <- data_set |> 
@@ -1667,11 +1674,11 @@ data_set_aux <- data_set |>
     .groups = "drop"
   ) |> mutate(z = log(z+1)) ## TRANSFORMAR SE NECESSÁRIO
 glimpse(data_set_aux)
-#> Rows: 4,525
+#> Rows: 4,228
 #> Columns: 3
-#> $ x <dbl> -49.29976, -49.29920, -49.29879, -49.29791, -49.29754, -49.29691, -4…
-#> $ y <dbl> -20.93966, -20.93773, -20.93591, -20.93728, -20.94069, -20.88295, -2…
-#> $ z <dbl> 1.6985765, 1.6512698, 1.7510476, 1.7994867, 1.7242080, 0.6718242, 2.…
+#> $ x <dbl> -49.29039, -49.28943, -49.28908, -49.28771, -49.28756, -49.28607, -4…
+#> $ y <dbl> -20.90816, -20.90947, -20.90697, -20.90772, -20.90952, -20.90862, -2…
+#> $ z <dbl> 0.3784364, 2.7504709, 0.3715636, 2.0719133, 1.2947272, 1.7715568, 2.…
 ```
 
 #### Criando a fórmula para a análise
@@ -1711,6 +1718,10 @@ plot_my_models(modelo_1,modelo_2,modelo_3)
 
 ![](README_files/figure-gfm/unnamed-chunk-29-1.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-29-2.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-29-3.png)<!-- -->
 
+    #>   model       psill range
+    #> 1   Nug 0.926728599  0.00
+    #> 2   Gau 0.008652019 -1.48
+
 #### Validação Cruzada
 
 ``` r
@@ -1720,11 +1731,11 @@ plot_my_models(modelo_1,modelo_2,modelo_3)
 #### Seleção do melhor modelo
 
 O melhor modelo é aquele que apresenta um coeficiente de regressão o
-mais próximo de $`1`$, o intercepto o mais próximo de $`0`$, com o menor
-valor de $`RMSE`$ possível.
+mais próximo de $1$, o intercepto o mais próximo de $0$, com o menor
+valor de $RMSE$ possível.
 
 ``` r
-modelo <- modelo_2 ## sempre modificar
+modelo <- modelo_1 ## sempre modificar
 ```
 
 #### Definido o melhor modelo, precisamos guardar os valores dos parâmetros.
@@ -1732,40 +1743,42 @@ modelo <- modelo_2 ## sempre modificar
 Salvamos os parâmetros, e a figura o semivariograma + modelo ajustado
 
 ``` r
-# model <- modelo |> slice(2) |> pull(model)
-# rss <- round(attr(modelo, "SSErr"),4)
-# c0 <- round(modelo$psill[[1]],4)
-# c0_c1 <- round(sum(modelo$psill),4)
-# a <- ifelse(model == "Gau", round(modelo$range[[2]]*(3^.5),2),
-#             ifelse(model == "Exp",round(3*modelo$range[[2]],2),
-#             round(modelo$range[[2]],2)))
-# r2 <- vari_exp |> add_column( model = model, a=a, c0 = c0,
-#                                   c0_c1 = c0_c1) |>
-#     mutate(
-#       gamma_m = ifelse(model == "Sph",
-#         ifelse(dist <= a, c0 + (c0_c1 - c0) * (3/2 * (dist/a) - 1/2 * (dist/a)^3),c0_c1), ifelse(model == "Exp", c0 + (c0_c1-c0)*(1-exp(-3*(dist/a))),c0 + (c0_c1-c0)*(1-exp(-(dist/a)^2)))),
-#       residuo_total = (gamma-mean(gamma))^2,
-#       residuo_mod = (gamma - gamma_m)^2
-#     ) |>
-#     summarise(
-#       r2=(sum(residuo_total) - sum(residuo_mod))/sum(residuo_total)
-#     ) |> pull(r2)
-# 
-# tibble(
-#   ano_analise, unidade_analise, variavel, model, c0, c0_c1, a, rss, r2
-# ) |> mutate(gde = c0/c0_c1, .after = "a") |>
-#   write_csv(paste0("output/best-fit/",ano_analise,"-",
-#                    unidade_analise,"-",str_remove(variavel,"%"),".csv"))
-# 
-# ls_csv <- list.files("output/best-fit/",full.names = TRUE,pattern = ".csv")
-# map_df(ls_csv, read_csv) |>
-#   writexl::write_xlsx("output/semivariogram-models.xlsx")
-# png(filename = paste0("output/semivariogram-img/semivar-",
-#                       ano_analise,"-",
-#                    unidade_analise,"-",str_remove(variavel,"%"),".png"),
-#     width = 800, height = 600)
-# plot(vari_exp,model=modelo,cex.lab=2, col=1,pl=F,pch=16,cex=2.2,ylab=list("Semivariância",cex=2.3),xlab=list("Distância de Separação h (m)",cex=2.3,cex.axis=4))
-# dev.off()
+model <- modelo |> slice(2) |> pull(model)
+rss <- round(attr(modelo, "SSErr"),4)
+c0 <- round(modelo$psill[[1]],4)
+c0_c1 <- round(sum(modelo$psill),4)
+a <- ifelse(model == "Gau", round(modelo$range[[2]]*(3^.5),2),
+            ifelse(model == "Exp",round(3*modelo$range[[2]],2),
+            round(modelo$range[[2]],2)))
+r2 <- vari_exp |> add_column( model = model, a=a, c0 = c0,
+                                  c0_c1 = c0_c1) |>
+    mutate(
+      gamma_m = ifelse(model == "Sph",
+        ifelse(dist <= a, c0 + (c0_c1 - c0) * (3/2 * (dist/a) - 1/2 * (dist/a)^3),c0_c1), ifelse(model == "Exp", c0 + (c0_c1-c0)*(1-exp(-3*(dist/a))),c0 + (c0_c1-c0)*(1-exp(-(dist/a)^2)))),
+      residuo_total = (gamma-mean(gamma))^2,
+      residuo_mod = (gamma - gamma_m)^2
+    ) |>
+    summarise(
+      r2=(sum(residuo_total) - sum(residuo_mod))/sum(residuo_total)
+    ) |> pull(r2)
+
+tibble(
+  ano_analise, unidade_analise, variavel, model, c0, c0_c1, a, rss, r2
+) |> mutate(gde = c0/c0_c1, .after = "a") |>
+  write_csv(paste0("output/best-fit/",ano_analise,"-",
+                   unidade_analise,"-",str_remove(variavel,"%"),".csv"))
+
+ls_csv <- list.files("output/best-fit/",full.names = TRUE,pattern = ".csv")
+map_df(ls_csv, read_csv) |>
+  writexl::write_xlsx("output/semivariogram-models.xlsx")
+png(filename = paste0("output/semivariogram-img/semivar-",
+                      ano_analise,"-",
+                   unidade_analise,"-",str_remove(variavel,"%"),".png"),
+    width = 800, height = 600)
+plot(vari_exp,model=modelo,cex.lab=2, col=1,pl=F,pch=16,cex=2.2,ylab=list("Semivariância",cex=2.3),xlab=list("Distância de Separação h (m)",cex=2.3,cex.axis=4))
+dev.off()
+#> png 
+#>   2
 ```
 
 #### Krigragem ordinária (KO)
@@ -1773,11 +1786,11 @@ Salvamos os parâmetros, e a figura o semivariograma + modelo ajustado
 Estimar o atributo para locais não amostrados.
 
 ``` r
-# ko_variavel <- krige(formula=form, data_set_aux, grid_cat, model=modelo, 
+# ko_variavel <- krige(formula=form, data_set_aux, grid_cat, model=modelo,
 #     block=c(0,0),
 #     nsim=0,
 #     na.action=na.pass,
-#     debug.level=-1,  
+#     debug.level=-1,
 #     )
 ```
 
@@ -1828,11 +1841,11 @@ data_set_aux <- data_set |>
     .groups = "drop"
   ) |> mutate(z = log(z+1)) ## TRANSFORMAR SE NECESSÁRIO
 glimpse(data_set_aux)
-#> Rows: 5,827
+#> Rows: 5,335
 #> Columns: 3
-#> $ x <dbl> -49.72548, -49.72380, -49.72153, -49.72151, -49.72042, -49.71966, -4…
-#> $ y <dbl> -20.86486, -20.86425, -20.86496, -20.86313, -20.86219, -20.86392, -2…
-#> $ z <dbl> 1.951684, 1.802985, 1.671345, 1.513945, 1.555840, 1.794068, 2.760561…
+#> $ x <dbl> -49.69364, -49.69353, -49.69301, -49.69205, -49.69123, -49.69090, -4…
+#> $ y <dbl> -20.85575, -20.85379, -20.85769, -20.85443, -20.85654, -20.86282, -2…
+#> $ z <dbl> 2.2721259, 0.8372475, 0.6151856, 0.5822156, 1.1216776, 1.3711807, 3.…
 ```
 
 #### Criando a fórmula para a análise
@@ -1872,6 +1885,10 @@ plot_my_models(modelo_1,modelo_2,modelo_3)
 
 ![](README_files/figure-gfm/unnamed-chunk-39-1.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-39-2.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-39-3.png)<!-- -->
 
+    #>   model       psill range
+    #> 1   Nug 1.125149561  0.00
+    #> 2   Gau 0.007077665 -1.05
+
 #### Validação Cruzada
 
 ``` r
@@ -1881,11 +1898,11 @@ plot_my_models(modelo_1,modelo_2,modelo_3)
 #### Seleção do melhor modelo
 
 O melhor modelo é aquele que apresenta um coeficiente de regressão o
-mais próximo de $`1`$, o intercepto o mais próximo de $`0`$, com o menor
-valor de $`RMSE`$ possível.
+mais próximo de $1$, o intercepto o mais próximo de $0$, com o menor
+valor de $RMSE$ possível.
 
 ``` r
-modelo <- modelo_2 ## sempre modificar
+modelo <- modelo_1 ## sempre modificar
 ```
 
 #### Definido o melhor modelo, precisamos guardar os valores dos parâmetros.
@@ -1893,40 +1910,42 @@ modelo <- modelo_2 ## sempre modificar
 Salvamos os parâmetros, e a figura o semivariograma + modelo ajustado
 
 ``` r
-# model <- modelo |> slice(2) |> pull(model)
-# rss <- round(attr(modelo, "SSErr"),4)
-# c0 <- round(modelo$psill[[1]],4)
-# c0_c1 <- round(sum(modelo$psill),4)
-# a <- ifelse(model == "Gau", round(modelo$range[[2]]*(3^.5),2),
-#             ifelse(model == "Exp",round(3*modelo$range[[2]],2),
-#             round(modelo$range[[2]],2)))
-# r2 <- vari_exp |> add_column( model = model, a=a, c0 = c0,
-#                                   c0_c1 = c0_c1) |>
-#     mutate(
-#       gamma_m = ifelse(model == "Sph",
-#         ifelse(dist <= a, c0 + (c0_c1 - c0) * (3/2 * (dist/a) - 1/2 * (dist/a)^3),c0_c1), ifelse(model == "Exp", c0 + (c0_c1-c0)*(1-exp(-3*(dist/a))),c0 + (c0_c1-c0)*(1-exp(-(dist/a)^2)))),
-#       residuo_total = (gamma-mean(gamma))^2,
-#       residuo_mod = (gamma - gamma_m)^2
-#     ) |>
-#     summarise(
-#       r2=(sum(residuo_total) - sum(residuo_mod))/sum(residuo_total)
-#     ) |> pull(r2)
-# 
-# tibble(
-#   ano_analise, unidade_analise, variavel, model, c0, c0_c1, a, rss, r2
-# ) |> mutate(gde = c0/c0_c1, .after = "a") |>
-#   write_csv(paste0("output/best-fit/",ano_analise,"-",
-#                    unidade_analise,"-",str_remove(variavel,"%"),".csv"))
-# 
-# ls_csv <- list.files("output/best-fit/",full.names = TRUE,pattern = ".csv")
-# map_df(ls_csv, read_csv) |>
-#   writexl::write_xlsx("output/semivariogram-models.xlsx")
-# png(filename = paste0("output/semivariogram-img/semivar-",
-#                       ano_analise,"-",
-#                    unidade_analise,"-",str_remove(variavel,"%"),".png"),
-#     width = 800, height = 600)
-# plot(vari_exp,model=modelo,cex.lab=2, col=1,pl=F,pch=16,cex=2.2,ylab=list("Semivariância",cex=2.3),xlab=list("Distância de Separação h (m)",cex=2.3,cex.axis=4))
-# dev.off()
+model <- modelo |> slice(2) |> pull(model)
+rss <- round(attr(modelo, "SSErr"),4)
+c0 <- round(modelo$psill[[1]],4)
+c0_c1 <- round(sum(modelo$psill),4)
+a <- ifelse(model == "Gau", round(modelo$range[[2]]*(3^.5),2),
+            ifelse(model == "Exp",round(3*modelo$range[[2]],2),
+            round(modelo$range[[2]],2)))
+r2 <- vari_exp |> add_column( model = model, a=a, c0 = c0,
+                                  c0_c1 = c0_c1) |>
+    mutate(
+      gamma_m = ifelse(model == "Sph",
+        ifelse(dist <= a, c0 + (c0_c1 - c0) * (3/2 * (dist/a) - 1/2 * (dist/a)^3),c0_c1), ifelse(model == "Exp", c0 + (c0_c1-c0)*(1-exp(-3*(dist/a))),c0 + (c0_c1-c0)*(1-exp(-(dist/a)^2)))),
+      residuo_total = (gamma-mean(gamma))^2,
+      residuo_mod = (gamma - gamma_m)^2
+    ) |>
+    summarise(
+      r2=(sum(residuo_total) - sum(residuo_mod))/sum(residuo_total)
+    ) |> pull(r2)
+
+tibble(
+  ano_analise, unidade_analise, variavel, model, c0, c0_c1, a, rss, r2
+) |> mutate(gde = c0/c0_c1, .after = "a") |>
+  write_csv(paste0("output/best-fit/",ano_analise,"-",
+                   unidade_analise,"-",str_remove(variavel,"%"),".csv"))
+
+ls_csv <- list.files("output/best-fit/",full.names = TRUE,pattern = ".csv")
+map_df(ls_csv, read_csv) |>
+  writexl::write_xlsx("output/semivariogram-models.xlsx")
+png(filename = paste0("output/semivariogram-img/semivar-",
+                      ano_analise,"-",
+                   unidade_analise,"-",str_remove(variavel,"%"),".png"),
+    width = 800, height = 600)
+plot(vari_exp,model=modelo,cex.lab=2, col=1,pl=F,pch=16,cex=2.2,ylab=list("Semivariância",cex=2.3),xlab=list("Distância de Separação h (m)",cex=2.3,cex.axis=4))
+dev.off()
+#> png 
+#>   2
 ```
 
 #### Krigragem ordinária (KO)
@@ -1934,23 +1953,23 @@ Salvamos os parâmetros, e a figura o semivariograma + modelo ajustado
 Estimar o atributo para locais não amostrados.
 
 ``` r
-# ko_variavel <- krige(formula=form, data_set_aux, grid_pot, model=modelo, 
+# ko_variavel <- krige(formula=form, data_set_aux, grid_pot, model=modelo,
 #     block=c(0,0),
 #     nsim=0,
 #     na.action=na.pass,
-#     debug.level=-1,  
+#     debug.level=-1,
 #     )
 ```
 
 #### Salva o mapa e os valores estimados
 
 ``` r
-# mapa <- as_tibble(ko_variavel) |> 
-#   ggplot(aes(x=X, y=Y)) + 
+# mapa <- as_tibble(ko_variavel) |>
+#   ggplot(aes(x=X, y=Y)) +
 #   geom_tile(aes(fill = var1.pred)) +
-#   # scale_fill_gradient(low = "yellow", high = "blue") + 
+#   # scale_fill_gradient(low = "yellow", high = "blue") +
 #   scale_fill_viridis_c() +
-#   coord_equal() + 
+#   coord_equal() +
 #   labs(fill=variavel,
 #        x="Longitude",
 #        y="Latitude")
@@ -1960,9 +1979,9 @@ Estimar o atributo para locais não amostrados.
 ```
 
 ``` r
-# df <- ko_variavel |> 
-#   as_tibble() |> 
-#   mutate(var1.var = sqrt(var1.var)) |> 
+# df <- ko_variavel |>
+#   as_tibble() |>
+#   mutate(var1.var = sqrt(var1.var)) |>
 #   rename(
 #     !!variavel := var1.pred,
 #     !!paste0(variavel,"_sd") := var1.var,
@@ -1983,87 +2002,99 @@ kgr_list_files <- list.files("output/krigagem/",
                              full.names = TRUE)
 
 my_kgr_reader<-function(path){
-  nomes <- read_rds(path) |> names()
+  nomes <- read_rds(path) |> janitor::clean_names() |> 
+    names()
   df_aux <- read_rds(path) |>
     mutate(variable = nomes[3],
            path=path)
   names(df_aux) <- c("X","Y","value","value_sd","variable","path")
-
-  df_aux
-};my_kgr_reader(kgr_list_files[1])
-#> # A tibble: 5,871 × 6
-#>        X     Y value value_sd variable path                                     
-#>    <dbl> <dbl> <dbl>    <dbl> <chr>    <chr>                                    
-#>  1 -49.2 -21.3  2.98    0.307 Ca       output/krigagem/2016/estimativa-2016-CAT…
-#>  2 -49.2 -21.3  2.99    0.297 Ca       output/krigagem/2016/estimativa-2016-CAT…
-#>  3 -49.2 -21.3  2.95    0.277 Ca       output/krigagem/2016/estimativa-2016-CAT…
-#>  4 -49.2 -21.3  2.98    0.310 Ca       output/krigagem/2016/estimativa-2016-CAT…
-#>  5 -49.2 -21.3  2.98    0.304 Ca       output/krigagem/2016/estimativa-2016-CAT…
-#>  6 -49.2 -21.3  2.99    0.285 Ca       output/krigagem/2016/estimativa-2016-CAT…
-#>  7 -49.2 -21.3  2.99    0.254 Ca       output/krigagem/2016/estimativa-2016-CAT…
-#>  8 -49.2 -21.3  2.82    0.256 Ca       output/krigagem/2016/estimativa-2016-CAT…
-#>  9 -49.2 -21.3  2.97    0.310 Ca       output/krigagem/2016/estimativa-2016-CAT…
-#> 10 -49.2 -21.3  2.96    0.304 Ca       output/krigagem/2016/estimativa-2016-CAT…
-#> # ℹ 5,861 more rows
+  
+  return(df_aux)
+} #;my_kgr_reader(kgr_list_files[13])
 ```
 
 ``` r
-# data_set_kgr <- map_df(kgr_list_files,my_kgr_reader) |>
-#   mutate(
-#     ano = as.numeric(str_sub(path,17,20)),
-#     unidade = str_sub(path,38,40)
-#   )
-# write_rds(data_set_kgr,"data/data_set_kgr.rds")
-# data_set_kgr$unidade |> unique()
+data_set_kgr <- map_df(kgr_list_files,my_kgr_reader) |>
+  mutate(
+    ano = as.numeric(str_sub(path,17,20)),
+    unidade = str_sub(path,38,40)
+  )
 ```
+
+``` r
+data_set_kgr |> 
+  select(X,Y,unidade,ano,variable,value) |> 
+  pivot_wider(names_from = variable,
+              values_from = value) |> 
+  filter(!is.na(v_percent)) |> 
+  ggplot(aes(X,Y)) +
+  geom_point()
+```
+
+![](README_files/figure-gfm/unnamed-chunk-48-1.png)<!-- -->
+
+``` r
+# write_rds(data_set_kgr,"data/data_set_kgr.rds")
+# data_set_kgr$variable |> unique()
+```
+
+#### Carregando os dados krigados
 
 ``` r
 data_set_kgr <- read_rds("data/data_set_kgr.rds")
 glimpse(data_set_kgr)
-#> Rows: 473,441
+#> Rows: 474,279
 #> Columns: 8
 #> $ X        <dbl> -49.20586, -49.20086, -49.19586, -49.21086, -49.20586, -49.20…
 #> $ Y        <dbl> -21.30041, -21.30041, -21.30041, -21.29541, -21.29541, -21.29…
 #> $ value    <dbl> 2.982351, 2.985201, 2.948660, 2.976264, 2.977513, 2.993084, 2…
 #> $ value_sd <dbl> 0.3065954, 0.2966530, 0.2767739, 0.3097676, 0.3037934, 0.2853…
-#> $ variable <chr> "Ca", "Ca", "Ca", "Ca", "Ca", "Ca", "Ca", "Ca", "Ca", "Ca", "…
+#> $ variable <chr> "ca", "ca", "ca", "ca", "ca", "ca", "ca", "ca", "ca", "ca", "…
 #> $ path     <chr> "output/krigagem/2016/estimativa-2016-CAT-Ca.rds", "output/kr…
 #> $ ano      <dbl> 2016, 2016, 2016, 2016, 2016, 2016, 2016, 2016, 2016, 2016, 2…
 #> $ unidade  <chr> "CAT", "CAT", "CAT", "CAT", "CAT", "CAT", "CAT", "CAT", "CAT"…
 ```
 
+#### Extraindo apenas os pontos dos talhões.
+
+Para essa extração utilizamos o desvio padrão da estimativa realizada
+pela Krigagem. Como a variância só depende da distância entre os pontos,
+aqueles com maiores valores de `values_sd` não fazem parte do talhões
+amostrados. Exemplo a seguir, desvio padrão da krigagem para o Ca
+
 ``` r
 year <- 2018
 unit <- "POT"
-variavel <- "Ca"
-
-data_set_kgr |> 
-  filter(
-    ano == year,
-    unidade == unit,
-    variable == variavel
-  ) |> 
-  ggplot(aes(x=value_sd)) +
-  geom_histogram()
-```
-
-![](README_files/figure-gfm/unnamed-chunk-49-1.png)<!-- -->
-
-``` r
+variavel <- "ca"
 data_set_kgr |> 
   filter(
     ano == year,
     unidade == unit,
     variable == variavel,
-    # value_sd <= 0.379, # CAT
-    # value_sd <= 0.41 # POT
   ) |> 
   ggplot(aes(X,Y,fill=value_sd)) +
   geom_tile()+
   scale_fill_viridis_c(option = "inferno")
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-50-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-51-1.png)<!-- -->
+
+#### Histograma dos valores de sd para Ca
+
+``` r
+data_set_kgr |> 
+  filter(
+    ano == year,
+    variable == variavel,
+  ) |> 
+  ggplot(aes(x=value_sd, fill=unidade)) +
+  geom_histogram(color="black") +
+  facet_wrap(~unidade, scale="free")
+```
+
+![](README_files/figure-gfm/unnamed-chunk-52-1.png)<!-- -->
+
+#### Aplicando os filtros
 
 ``` r
 cat_xy <- data_set_kgr |> 
@@ -2078,32 +2109,279 @@ cat_xy <- data_set_kgr |>
   mutate(
     flag = TRUE
   )
-
-data_set_kgr |> 
+data_set_kgr_filter <- data_set_kgr |> 
   # filter(unidade == "CAT") |> 
   left_join(cat_xy,by = c("X","Y")) |> 
-  filter(flag) |> 
-  filter(    
-    ano == year,
-    # unidade == "CAT",
-    variable == "Ca") |> 
-  ggplot(aes(X,Y,color=value)) +
-  geom_point() +
-  scale_color_viridis_c()
+  filter(flag)
 ```
-
-![](README_files/figure-gfm/unnamed-chunk-51-1.png)<!-- -->
 
 ``` r
-data_set_kgr |> 
-  filter(
+data_set_kgr_filter |> 
+  filter(    
     ano == year,
-    unidade == unit,
-    variable == variavel
-  ) |> 
-  ggplot(aes(X,Y,fill=value)) +
-  geom_tile()+
-  scale_fill_viridis_c()
+    unidade == "POT",
+    variable == "mg") |> 
+  ggplot(aes(X,Y,color=value)) +
+  geom_point(size=2) +
+  scale_color_viridis_c() +
+  facet_wrap(~unidade, scale = "free")
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-52-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-54-1.png)<!-- -->
+
+``` r
+data_set_kgr_filter |> 
+  filter(    
+    ano == year,
+    unidade == "CAT",
+    variable == "tch") |> 
+  ggplot(aes(X,Y,color=value)) +
+  geom_point(size=2) +
+  scale_color_viridis_c() +
+  facet_wrap(~unidade)
+```
+
+![](README_files/figure-gfm/unnamed-chunk-55-1.png)<!-- -->
+
+#### Criando o arquivo para aprendizado de máquina
+
+``` r
+data_set_kgr_filter_wider <- data_set_kgr_filter |> 
+  select(X,Y,unidade,ano,variable,value) |> 
+  pivot_wider(names_from = variable,
+              values_from = value) 
+visdat::vis_miss(data_set_kgr_filter_wider)
+```
+
+![](README_files/figure-gfm/unnamed-chunk-56-1.png)<!-- -->
+
+## ABORDAGEM DE MODELO GERAL
+
+### Definindo a Base de treino e teste
+
+``` r
+data_set_ml <- data_set_kgr_filter_wider  |>  #<-------
+  drop_na() |> 
+  filter(tch >= 25)
+tch_initial_split <- initial_split(data_set_ml, prop = 0.75)
+tch_train <- training(tch_initial_split)
+# tch_test <- testing(tch_initial_split)
+# visdat::vis_miss(tch_test)
+tch_train  %>% 
+  ggplot(aes(x=tch, y=..density..))+
+  geom_histogram(bins = 30, color="black",  fill="lightgray")+
+  geom_density(alpha=.05,fill="red")+
+  theme_bw() +
+  labs(x="tch - treino", y = "Densidade")
+```
+
+![](README_files/figure-gfm/unnamed-chunk-57-1.png)<!-- -->
+
+``` r
+tch_testing <- testing(tch_initial_split)
+tch_testing  |> 
+  ggplot(aes(x=tch, y=..density..))+
+  geom_histogram(bins = 30, color="black",  fill="lightgray")+
+  geom_density(alpha=.05,fill="blue")+
+  theme_bw() +
+  labs(x="tch - teste", y = "Densidade")
+```
+
+![](README_files/figure-gfm/unnamed-chunk-58-1.png)<!-- -->
+
+``` r
+tch_train |> 
+  select(ca:v_percent) |> 
+  relocate(tch) |> 
+  cor() |> 
+  corrplot::corrplot( method = "color",
+         outline = T,,
+         addgrid.col = "darkgray",cl.pos = "r", tl.col = "black",
+         tl.cex = 1, cl.cex = 1, type = "upper", bg="azure2",
+         diag = FALSE,
+         addCoef.col = "black",
+         cl.ratio = 0.2,
+         cl.length = 5,
+         number.cex = 0.8)
+```
+
+![](README_files/figure-gfm/unnamed-chunk-59-1.png)<!-- --> \###
+Definindo a `receita` da análise
+
+``` r
+tch_recipe <- recipe(tch ~ ., 
+                      data = tch_train  |>  
+            select(unidade,ca:v_percent) 
+) |>  
+  step_naomit() %>%  
+  step_zv(all_predictors())  |> 
+  step_impute_median(where(is.numeric)) |> # inputação da mediana nos   
+  step_normalize(all_numeric_predictors()) |> # padronização dos dados  
+  step_novel(all_nominal_predictors())  |># trata categorias novas 
+  step_dummy(all_nominal_predictors()) # variáveis categóricas
+bake(prep(tch_recipe), new_data = NULL)
+#> # A tibble: 5,791 × 15
+#>        ca    ctc    h_al       k m_percent      mg      mo      p     p_h
+#>     <dbl>  <dbl>   <dbl>   <dbl>     <dbl>   <dbl>   <dbl>  <dbl>   <dbl>
+#>  1  0.532  0.359 -0.183   0.147    -0.460   0.422   0.0230  0.500  0.477 
+#>  2 -0.481 -0.353  0.254  -0.245     0.301  -0.332   0.251  -0.515 -0.480 
+#>  3  0.279  0.354 -0.538   0.727    -0.842   0.847   0.0230  0.389  0.452 
+#>  4 -0.269 -1.98  -3.37   -1.40     -0.921  -0.338   1.33    0.728  1.24  
+#>  5 -0.470 -0.642  0.109   0.112    -0.0262 -0.317  -0.247  -0.576 -0.280 
+#>  6  1.14   0.458 -0.0256 -0.263    -0.225  -0.0791  0.0230  0.599  0.0771
+#>  7  1.32   0.651 -0.469   0.595    -0.789   1.27    0.0230  0.671  0.908 
+#>  8 -1.48  -0.573  1.32   -1.04      1.40   -0.745  -0.265  -0.438 -1.15  
+#>  9 -0.385 -0.315 -0.235   0.150     0.384  -0.234  -0.734  -0.511 -0.199 
+#> 10  0.531  0.344 -0.221  -0.0282   -0.470   0.361   0.0230  0.500  0.413 
+#> # ℹ 5,781 more rows
+#> # ℹ 6 more variables: s <dbl>, sb <dbl>, v_percent <dbl>, tch <dbl>,
+#> #   unidade_POT <dbl>, unidade_new <dbl>
+```
+
+### Definindo a reamostragem
+
+``` r
+tch_resamples <- vfold_cv(tch_train, v = 5) 
+```
+
+## REDE NEURAL ARTIFICIAL
+
+### Definição do Modelo de RNA - MultiLayer Perceptron
+
+``` r
+tch_nn_model <- mlp() |>  # margin sempre para regressão
+  set_mode("regression") |> 
+  set_engine("nnet")
+```
+
+### Definindo os parâmetros de tunagem
+
+``` r
+tch_nn_model <- mlp(
+  hidden_units = tune(),
+  penalty = tune(),
+  epochs = tune()
+  ) |>  # margin sempre para regressão
+  set_mode("regression") |> 
+  set_engine("nnet")
+```
+
+### Workflow e tunagem
+
+``` r
+tch_nn_wf <- workflow()   |> 
+  add_model(tch_nn_model) |> 
+  add_recipe(tch_recipe)
+
+grid_nn <- grid_regular(
+  hidden_units(range = c(2, 20)), ## tentar até 250
+  penalty(range = c(-6, 0), trans = scales::log10_trans()), ## no máximo 30
+  epochs(range = c(20, 300)),
+  levels = c(3, 3, 3)
+)
+
+tch_nn_tune_grid <- tune_grid(
+  tch_nn_wf,
+  resamples = tch_resamples,
+  grid = grid_nn,
+  metrics = metric_set(rmse)
+)
+autoplot(tch_nn_tune_grid)
+```
+
+![](README_files/figure-gfm/unnamed-chunk-64-1.png)<!-- -->
+
+### Coletando métricas
+
+``` r
+collect_metrics(tch_nn_tune_grid)
+#> # A tibble: 27 × 9
+#>    hidden_units  penalty epochs .metric .estimator  mean     n std_err .config  
+#>           <int>    <dbl>  <int> <chr>   <chr>      <dbl> <int>   <dbl> <chr>    
+#>  1            2 0.000001     20 rmse    standard    16.1     5   0.229 Preproce…
+#>  2           11 0.000001     20 rmse    standard    15.6     5   0.231 Preproce…
+#>  3           20 0.000001     20 rmse    standard    14.7     5   0.218 Preproce…
+#>  4            2 0.001        20 rmse    standard    15.8     5   0.129 Preproce…
+#>  5           11 0.001        20 rmse    standard    17.5     5   1.46  Preproce…
+#>  6           20 0.001        20 rmse    standard    14.6     5   0.227 Preproce…
+#>  7            2 1            20 rmse    standard    16.2     5   0.273 Preproce…
+#>  8           11 1            20 rmse    standard    16.7     5   0.817 Preproce…
+#>  9           20 1            20 rmse    standard    14.8     5   0.267 Preproce…
+#> 10            2 0.000001    160 rmse    standard    15.7     5   0.162 Preproce…
+#> # ℹ 17 more rows
+tch_nn_tune_grid |> 
+  show_best(metric = "rmse", n = 6)
+#> # A tibble: 6 × 9
+#>   hidden_units  penalty epochs .metric .estimator  mean     n std_err .config   
+#>          <int>    <dbl>  <int> <chr>   <chr>      <dbl> <int>   <dbl> <chr>     
+#> 1           20 0.000001    300 rmse    standard    14.5     5   0.159 Preproces…
+#> 2           20 0.001       160 rmse    standard    14.6     5   0.242 Preproces…
+#> 3           20 0.001        20 rmse    standard    14.6     5   0.227 Preproces…
+#> 4           20 1           160 rmse    standard    14.7     5   0.191 Preproces…
+#> 5           20 1           300 rmse    standard    14.7     5   0.241 Preproces…
+#> 6           20 0.000001     20 rmse    standard    14.7     5   0.218 Preproces…
+```
+
+### Desempenho do modelo final
+
+``` r
+tch_nn_best_params <- select_best(tch_nn_tune_grid, metric = "rmse")
+tch_nn_wf <- tch_nn_wf |> 
+  finalize_workflow(tch_nn_best_params)
+tch_nn_last_fit <- last_fit(tch_nn_wf, tch_initial_split)
+
+## Criando os preditos
+tch_test_preds <- bind_rows(
+  collect_predictions(tch_nn_last_fit)  |> 
+    mutate(modelo = "nn"))
+
+tch_test <- testing(tch_initial_split)
+
+tch_test_preds |> 
+  ggplot(aes(x=.pred, y=tch)) +
+  geom_point()+
+  theme_bw() +
+  geom_smooth(method = "lm") +
+  stat_regline_equation(ggplot2::aes(
+  label =  paste(..eq.label.., ..rr.label.., sep = "*plain(\",\")~~"))) +
+  geom_abline (slope=1, linetype = "dashed", color="Red")
+```
+
+![](README_files/figure-gfm/unnamed-chunk-66-1.png)<!-- -->
+
+``` r
+tch_nn_last_fit_model <- tch_nn_last_fit$.workflow[[1]]$fit$fit
+vip(tch_nn_last_fit_model,
+    aesthetics = list(color = "black", fill = "orange")) +
+    theme(axis.text.y=element_text(size=rel(1.5)),
+          axis.text.x=element_text(size=rel(1.5)),
+          axis.title.x=element_text(size=rel(1.5))
+          ) +
+  theme_bw()
+```
+
+![](README_files/figure-gfm/unnamed-chunk-67-1.png)<!-- --> \###
+Principais Métricas
+
+``` r
+da <- tch_test_preds |> 
+  filter(tch > 0, .pred>0 )
+
+my_r <- cor(da$tch,da$.pred)
+my_r2 <- my_r*my_r
+my_mse <- Metrics::mse(da$tch,da$.pred)
+my_rmse <- Metrics::rmse(da$tch,
+                         da$.pred)
+my_mae <- Metrics::mae(da$tch,da$.pred)
+my_mape <- Metrics::mape(da$tch,da$.pred)*100
+
+vector_of_metrics <- c(r=my_r, R2=my_r2, MSE=my_mse, RMSE=my_rmse, MAE=my_mae, MAPE=my_mape)
+print(data.frame(vector_of_metrics))
+#>      vector_of_metrics
+#> r            0.5122463
+#> R2           0.2623963
+#> MSE        212.2027117
+#> RMSE        14.5671793
+#> MAE         10.7458053
+#> MAPE        13.0202728
+```
