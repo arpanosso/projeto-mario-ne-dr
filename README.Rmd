@@ -844,28 +844,103 @@ kgr_list_files <- list.files("output/krigagem/",
 
 my_kgr_reader<-function(path){
   nomes <- read_rds(path) |> names()
-  df_aux <- read_rds(path) |> 
+  df_aux <- read_rds(path) |>
     mutate(variable = nomes[3],
            path=path)
   names(df_aux) <- c("X","Y","value","value_sd","variable","path")
-  
+
   df_aux
 };my_kgr_reader(kgr_list_files[1])
 ```
 
 
 ```{r}
-data_set_kgr <- map_df(kgr_list_files,my_kgr_reader) |> 
-  mutate(
-    ano = as.numeric(str_sub(path,17,20)),
-    unidade = str_sub(path,38,40)
-  )
-write_rds("data_set_kgr","data/data_set_kgr.rds")
-data_set_kgr$unidade |> unique()
+# data_set_kgr <- map_df(kgr_list_files,my_kgr_reader) |>
+#   mutate(
+#     ano = as.numeric(str_sub(path,17,20)),
+#     unidade = str_sub(path,38,40)
+#   )
+# write_rds(data_set_kgr,"data/data_set_kgr.rds")
+# data_set_kgr$unidade |> unique()
 ```
 
 
+```{r}
+data_set_kgr <- read_rds("data/data_set_kgr.rds")
+glimpse(data_set_kgr)
+```
 
+```{r}
+year <- 2018
+unit <- "POT"
+variavel <- "Ca"
+
+data_set_kgr |> 
+  filter(
+    ano == year,
+    unidade == unit,
+    variable == variavel
+  ) |> 
+  ggplot(aes(x=value_sd)) +
+  geom_histogram()
+```
+
+
+```{r}
+data_set_kgr |> 
+  filter(
+    ano == year,
+    unidade == unit,
+    variable == variavel,
+    # value_sd <= 0.379, # CAT
+    # value_sd <= 0.41 # POT
+  ) |> 
+  ggplot(aes(X,Y,fill=value_sd)) +
+  geom_tile()+
+  scale_fill_viridis_c(option = "inferno")
+```
+
+
+```{r}
+cat_xy <- data_set_kgr |> 
+  filter(
+    ano == year,
+    # unidade == unit,
+    variable == variavel,
+    (unidade == "CAT" & value_sd <= 0.379) | 
+      (unidade == "POT" & value_sd <= 0.41)
+  ) |> 
+  select(X,Y) |> 
+  mutate(
+    flag = TRUE
+  )
+
+data_set_kgr |> 
+  # filter(unidade == "CAT") |> 
+  left_join(cat_xy,by = c("X","Y")) |> 
+  filter(flag) |> 
+  filter(    
+    ano == year,
+    # unidade == "CAT",
+    variable == "Ca") |> 
+  ggplot(aes(X,Y,color=value)) +
+  geom_point() +
+  scale_color_viridis_c()
+
+```
+
+
+```{r}
+data_set_kgr |> 
+  filter(
+    ano == year,
+    unidade == unit,
+    variable == variavel
+  ) |> 
+  ggplot(aes(X,Y,fill=value)) +
+  geom_tile()+
+  scale_fill_viridis_c()
+```
 
 
 

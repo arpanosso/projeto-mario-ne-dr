@@ -1720,8 +1720,8 @@ plot_my_models(modelo_1,modelo_2,modelo_3)
 #### Seleção do melhor modelo
 
 O melhor modelo é aquele que apresenta um coeficiente de regressão o
-mais próximo de $1$, o intercepto o mais próximo de $0$, com o menor
-valor de $RMSE$ possível.
+mais próximo de $`1`$, o intercepto o mais próximo de $`0`$, com o menor
+valor de $`RMSE`$ possível.
 
 ``` r
 modelo <- modelo_2 ## sempre modificar
@@ -1881,8 +1881,8 @@ plot_my_models(modelo_1,modelo_2,modelo_3)
 #### Seleção do melhor modelo
 
 O melhor modelo é aquele que apresenta um coeficiente de regressão o
-mais próximo de $1$, o intercepto o mais próximo de $0$, com o menor
-valor de $RMSE$ possível.
+mais próximo de $`1`$, o intercepto o mais próximo de $`0`$, com o menor
+valor de $`RMSE`$ possível.
 
 ``` r
 modelo <- modelo_2 ## sempre modificar
@@ -1984,11 +1984,11 @@ kgr_list_files <- list.files("output/krigagem/",
 
 my_kgr_reader<-function(path){
   nomes <- read_rds(path) |> names()
-  df_aux <- read_rds(path) |> 
+  df_aux <- read_rds(path) |>
     mutate(variable = nomes[3],
            path=path)
   names(df_aux) <- c("X","Y","value","value_sd","variable","path")
-  
+
   df_aux
 };my_kgr_reader(kgr_list_files[1])
 #> # A tibble: 5,871 × 6
@@ -2008,12 +2008,102 @@ my_kgr_reader<-function(path){
 ```
 
 ``` r
-data_set_kgr <- map_df(kgr_list_files,my_kgr_reader) |> 
-  mutate(
-    ano = as.numeric(str_sub(path,17,20)),
-    unidade = str_sub(path,38,40)
-  )
-write_rds("data_set_kgr","data/data_set_kgr.rds")
-data_set_kgr$unidade |> unique()
-#> [1] "CAT" "POT"
+# data_set_kgr <- map_df(kgr_list_files,my_kgr_reader) |>
+#   mutate(
+#     ano = as.numeric(str_sub(path,17,20)),
+#     unidade = str_sub(path,38,40)
+#   )
+# write_rds(data_set_kgr,"data/data_set_kgr.rds")
+# data_set_kgr$unidade |> unique()
 ```
+
+``` r
+data_set_kgr <- read_rds("data/data_set_kgr.rds")
+glimpse(data_set_kgr)
+#> Rows: 473,441
+#> Columns: 8
+#> $ X        <dbl> -49.20586, -49.20086, -49.19586, -49.21086, -49.20586, -49.20…
+#> $ Y        <dbl> -21.30041, -21.30041, -21.30041, -21.29541, -21.29541, -21.29…
+#> $ value    <dbl> 2.982351, 2.985201, 2.948660, 2.976264, 2.977513, 2.993084, 2…
+#> $ value_sd <dbl> 0.3065954, 0.2966530, 0.2767739, 0.3097676, 0.3037934, 0.2853…
+#> $ variable <chr> "Ca", "Ca", "Ca", "Ca", "Ca", "Ca", "Ca", "Ca", "Ca", "Ca", "…
+#> $ path     <chr> "output/krigagem/2016/estimativa-2016-CAT-Ca.rds", "output/kr…
+#> $ ano      <dbl> 2016, 2016, 2016, 2016, 2016, 2016, 2016, 2016, 2016, 2016, 2…
+#> $ unidade  <chr> "CAT", "CAT", "CAT", "CAT", "CAT", "CAT", "CAT", "CAT", "CAT"…
+```
+
+``` r
+year <- 2018
+unit <- "POT"
+variavel <- "Ca"
+
+data_set_kgr |> 
+  filter(
+    ano == year,
+    unidade == unit,
+    variable == variavel
+  ) |> 
+  ggplot(aes(x=value_sd)) +
+  geom_histogram()
+```
+
+![](README_files/figure-gfm/unnamed-chunk-49-1.png)<!-- -->
+
+``` r
+data_set_kgr |> 
+  filter(
+    ano == year,
+    unidade == unit,
+    variable == variavel,
+    # value_sd <= 0.379, # CAT
+    # value_sd <= 0.41 # POT
+  ) |> 
+  ggplot(aes(X,Y,fill=value_sd)) +
+  geom_tile()+
+  scale_fill_viridis_c(option = "inferno")
+```
+
+![](README_files/figure-gfm/unnamed-chunk-50-1.png)<!-- -->
+
+``` r
+cat_xy <- data_set_kgr |> 
+  filter(
+    ano == year,
+    # unidade == unit,
+    variable == variavel,
+    (unidade == "CAT" & value_sd <= 0.379) | 
+      (unidade == "POT" & value_sd <= 0.41)
+  ) |> 
+  select(X,Y) |> 
+  mutate(
+    flag = TRUE
+  )
+
+data_set_kgr |> 
+  # filter(unidade == "CAT") |> 
+  left_join(cat_xy,by = c("X","Y")) |> 
+  filter(flag) |> 
+  filter(    
+    ano == year,
+    # unidade == "CAT",
+    variable == "Ca") |> 
+  ggplot(aes(X,Y,color=value)) +
+  geom_point() +
+  scale_color_viridis_c()
+```
+
+![](README_files/figure-gfm/unnamed-chunk-51-1.png)<!-- -->
+
+``` r
+data_set_kgr |> 
+  filter(
+    ano == year,
+    unidade == unit,
+    variable == variavel
+  ) |> 
+  ggplot(aes(X,Y,fill=value)) +
+  geom_tile()+
+  scale_fill_viridis_c()
+```
+
+![](README_files/figure-gfm/unnamed-chunk-52-1.png)<!-- -->
