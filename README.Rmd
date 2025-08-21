@@ -6,7 +6,7 @@ output: github_document
 
 ```{r, include = FALSE}
 knitr::opts_chunk$set(
-  collapse = TRUE, warning = FALSE, erro=FALSE, message = FALSE,
+  collapse = TRUE, warning = FALSE, erro=FALSE, message = FALSE,eval = FALSE,
   comment = "#>"
 )
 ```
@@ -18,9 +18,11 @@ knitr::opts_chunk$set(
 ```{r}
 library(tidymodels)
 library(tidyverse)
+library(modeldata)
 library(ggridges)
 library(corrplot)
-library(modeldata)
+library(brulee)
+library(keras3)
 library(ggpubr)
 library(vegan)
 library(gstat)
@@ -30,7 +32,6 @@ library(sp)
 source("R/my-functions.R")
 theme_set(theme_bw())
 ```
-
 
 ## Lendo o banco de dados
 
@@ -1081,7 +1082,7 @@ tch_nn_wf <- workflow()   |>
 
 grid_nn <- grid_regular(
   hidden_units(range = c(2, 20)), ## tentar até 250
-  penalty(range = c(-6, 0), trans = scales::log10_trans()), ## no máximo 30
+  penalty(range = c(-7, 0), trans = scales::log10_trans()), ## no máximo 30
   epochs(range = c(20, 300)),
   levels = c(3, 3, 3)
 )
@@ -1154,3 +1155,106 @@ vector_of_metrics <- c(r=my_r, R2=my_r2, MSE=my_mse, RMSE=my_rmse, MAE=my_mae, M
 print(data.frame(vector_of_metrics))
 ```
 
+
+## REDE NEURAL ARTIFICIAL - BRULEE
+
+### Definindo os parâmetros de tunagem
+
+```{r}
+tch_bl_model <- mlp(
+  hidden_units = tune(),      # Número de neurônios nas camadas
+  # dropout = tune(),           # Dropout rate
+  learn_rate = tune(),        # Taxa de aprendizado
+  epochs = tune(),            # Número de épocas
+  penalty = tune(),            # Regularização L2
+  activation = tune()
+) %>% #"relu", "tanh", "sigmoid", "leaky_relu"
+  # set_args(activation = "sigmoid") |>  # margin sempre para regressão
+  set_mode("regression") |> 
+  set_engine("brulee")
+```
+
+### Workflow e tunagem
+
+```{r}
+tch_bl_wf <- workflow()   |> 
+  add_model(tch_bl_model) |> 
+  add_recipe(tch_recipe)
+
+grid_bl <- grid_latin_hypercube(
+  hidden_units(range = c(10, 50)),
+  # dropout(range = c(0, 0.3)),
+  learn_rate(range = c(-3, -1)),
+  epochs(range = c(50, 200)),
+  penalty(range = c(-6, -3)),
+  activation(c("relu", "tanh", "leaky_relu")),
+  size = 25
+)
+
+tch_bl_tune_grid <- tune_grid(
+  tch_bl_wf,
+  resamples = tch_resamples,
+  grid = grid_bl,
+  metrics = metric_set(rmse)
+)
+autoplot(tch_bl_tune_grid)
+```
+
+### Coletando métricas
+
+```{r}
+collect_metrics(tch_bl_tune_grid)
+tch_bl_tune_grid |> 
+  show_best(metric = "rmse", n = 6)
+```
+### Desempenho do modelo final
+```{r}
+tch_bl_best_params <- select_best(tch_bl_tune_grid, metric = "rmse")
+tch_bl_wf <- tch_bl_wf |> 
+  finalize_workflow(tch_bl_best_params)
+tch_bl_last_fit <- last_fit(tch_bl_wf, tch_initial_split)
+
+## Criando os preditos
+tch_test_preds <- bind_rows(
+  collect_predictions(tch_bl_last_fit)  |> 
+    mutate(modelo = "bl"))
+
+tch_test <- testing(tch_initial_split)
+
+tch_test_preds |> 
+  ggplot(aes(x=.pred, y=tch)) +
+  geom_point()+
+  theme_bw() +
+  geom_smooth(method = "lm") +
+  stat_regline_equation(ggplot2::aes(
+  label =  paste(..eq.label.., ..rr.label.., sep = "*plain(\",\")~~"))) +
+  geom_abline (slope=1, linetype = "dashed", color="Red")
+```
+
+```{r}
+tch_bl_last_fit_model <- tch_bl_last_fit$.workflow[[1]]$fit$fit
+# vip(tch_bl_last_fit_model,
+#     aesthetics = list(color = "black", fill = "orange")) +
+#     theme(axis.text.y=element_text(size=rel(1.5)),
+#           axis.text.x=element_text(size=rel(1.5)),
+#           axis.title.x=element_text(size=rel(1.5))
+#           ) +
+#   theme_bw()
+```
+### Principais Métricas 
+
+```{r}
+da <- tch_test_preds |> 
+  filter(tch > 0, .pred>0 )
+
+my_r <- cor(da$tch,da$.pred)
+my_r2 <- my_r*my_r
+my_mse <- Metrics::mse(da$tch,da$.pred)
+my_rmse <- Metrics::rmse(da$tch,
+                         da$.pred)
+my_mae <- Metrics::mae(da$tch,da$.pred)
+my_mape <- Metrics::mape(da$tch,da$.pred)*100
+
+vector_of_metrics <- c(r=my_r, R2=my_r2, MSE=my_mse, RMSE=my_rmse, MAE=my_mae, MAPE=my_mape)
+print(data.frame(vector_of_metrics))
+```
