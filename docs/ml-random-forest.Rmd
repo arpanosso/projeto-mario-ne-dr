@@ -230,7 +230,7 @@ tch_recipe <- recipe(tch ~ .,
   step_naomit() %>%  
   step_zv(all_predictors())  |> 
   step_impute_median(where(is.numeric)) |> # inputação da mediana nos   
-  step_normalize(all_numeric_predictors()) |> # padronização dos dados  
+  # step_normalize(all_numeric_predictors()) |> # padronização dos dados  
   step_novel(all_nominal_predictors())  |># trata categorias novas 
   step_dummy(all_nominal_predictors()) # variáveis categóricas
 bake(prep(tch_recipe), new_data = NULL)
@@ -243,68 +243,62 @@ tch_resamples <- vfold_cv(tch_train, v = 5)
 ```
 
 
-## REDE NEURAL ARTIFICIAL - BRULEE
+## RAMDOM - FOREST
 
 ### Definindo os parâmetros de tunagem
 
 ```{r}
-tch_bl_model <- mlp(
-  hidden_units = tune(),      # Número de neurônios nas camadas
-  # dropout = tune(),           # Dropout rate
-  learn_rate = tune(),        # Taxa de aprendizado
-  epochs = tune(),            # Número de épocas
-  penalty = tune(),            # Regularização L2
-  activation = tune() # tune()
-) %>% 
-  set_mode("regression") |> 
-  set_engine("brulee")
+tch_rf_model <- rand_forest(
+  min_n = tune(),
+  mtry = tune(),
+  trees = tune()
+)   %>%  
+  set_mode("regression")  %>% 
+  set_engine("randomForest")
 ```
 
 ### Workflow e tunagem
 
 ```{r}
-tch_bl_wf <- workflow()   |> 
-  add_model(tch_bl_model) |> 
+tch_rf_wf <- workflow()   |> 
+  add_model(tch_rf_model) |> 
   add_recipe(tch_recipe)
 
-grid_bl <- grid_regular(
-  hidden_units(range = c(10, 50)),
-  # dropout(range = c(0, 0.3)),
-  learn_rate(range = c(-3, -1)),
-  epochs(range = c(50, 200)),
-  penalty(range = c(-6, -3)),
-  activation("tanh"), # c("relu", "sigmoid","tanh", "leaky_relu") máximo 4
-  levels = c(3,3,3,3,1)
-)
+grid_rf <- grid_regular(
+  min_n(range = c(10, 30)),
+  mtry(range = c(5,12)),
+  trees(range = c(50,1000) ),
+  levels = 3 #<-----------------------
+) 
 
-tch_bl_tune_grid <- tune_grid(
-  tch_bl_wf,
+tch_rf_tune_grid <- tune_grid(
+  tch_rf_wf,
   resamples = tch_resamples,
-  grid = grid_bl,
+  grid = grid_rf,
   metrics = metric_set(rmse)
 )
-autoplot(tch_bl_tune_grid)
+autoplot(tch_rf_tune_grid)
 ```
 
 ### Coletando métricas
 
 ```{r}
-collect_metrics(tch_bl_tune_grid)
-tch_bl_tune_grid |> 
+collect_metrics(tch_rf_tune_grid)
+tch_rf_tune_grid |> 
   show_best(metric = "rmse", n = 6)
 ```
 
 ### Desempenho do modelo final
 ```{r}
-tch_bl_best_params <- select_best(tch_bl_tune_grid, metric = "rmse")
-tch_bl_wf <- tch_bl_wf |> 
-  finalize_workflow(tch_bl_best_params)
-tch_bl_last_fit <- last_fit(tch_bl_wf, tch_initial_split)
+tch_rf_best_params <- select_best(tch_rf_tune_grid, metric = "rmse")
+tch_rf_wf <- tch_rf_wf |> 
+  finalize_workflow(tch_rf_best_params)
+tch_rf_last_fit <- last_fit(tch_rf_wf, tch_initial_split)
 
 ## Criando os preditos
 tch_test_preds <- bind_rows(
-  collect_predictions(tch_bl_last_fit)  |> 
-    mutate(modelo = "bl"))
+  collect_predictions(tch_rf_last_fit)  |> 
+    mutate(modelo = "rf"))
 
 tch_test <- testing(tch_initial_split)
 
@@ -319,25 +313,13 @@ tch_test_preds |>
 ```
 
 ```{r}
-vip_plot <- tch_bl_last_fit %>%
-  extract_workflow() %>%
-  vip(
-    method = "permute",
-    train = tch_bl_last_fit$.workflow[[1]]$pre$mold$predictors,
-    target = tch_bl_last_fit$.workflow[[1]]$pre$mold$outcomes$tch,
-    metric = "rmse",
-    nsim = 5,
-    pred_wrapper = function(object, newdata) {
-      predict(object, newdata)$.pred
-    },
-    aesthetics = list(color = "black", fill = "orange")
-  ) +
-  theme(
-    axis.text.y = element_text(size = rel(1.5)), 
-    axis.text.x = element_text(size = rel(1.5)), 
-    axis.title.x = element_text(size = rel(1.5))
-  )
-vip_plot
+vip_plot <-  tch_rf_last_fit_model <-tch_rf_last_fit$.workflow[[1]]$fit$fit
+ vip(tch_rf_last_fit_model,
+     aesthetics = list(color = "black", fill = "orange")) +
+     theme(axis.text.y=element_text(size=rel(1.5)),
+           axis.text.x=element_text(size=rel(1.5)),
+           axis.title.x=element_text(size=rel(1.5))
+           )
 ```
 
 ### Principais Métricas 
