@@ -42,7 +42,6 @@ data_set <- read_rds("data/sugarcane-soil.rds")  |>
            pH = ph_cacl2,
            S = s) 
 glimpse(data_set)
-data_set$ano |> unique()
 ```
 
 ## 1. Análise Estatística Exploratória
@@ -199,11 +198,11 @@ da_pad <- decostand(da,
 da_pad_euc <- vegdist(da_pad, "euclidean") 
 da_pad_euc_ward<-hclust(da_pad_euc, method="ward.D")
 plot(da_pad_euc_ward, 
-     ylab="Distância Euclidiana",
+     ylab="Distancia Euclidiana",
      xlab="Acessos", hang=-1,
      col="blue", las=1,
      cex=.6,lwd=1.5);box()
-grupo <- cutree(da_pad_euc_ward,3)
+grupo <- cutree(da_pad_euc_ward,4)
 ```
 
 ### 2.2 Análise de Componentes Principais
@@ -236,9 +235,7 @@ pc1c<-pca$x[,1]/sd(pca$x[,1])
 pc2c<-pca$x[,2]/sd(pca$x[,2])
 pc3c<-pca$x[,3]/sd(pca$x[,3])
 nv<-ncol(da) # número de variáveis utilizadas na análise
-```
 
-``` r
 # gráfico biplot
 bip<-data.frame(pc1c,pc2c,pc3c,grupo)
 texto <- data.frame(
@@ -252,10 +249,10 @@ bi_plot <- bip |>
   ggplot(aes(x=pc1c,y=pc2c,color = as_factor(grupo)))+
   geom_point() + 
   theme_minimal() +
-   scale_shape_manual(values=16:18)+
-  scale_color_manual(values=c("#009E73", "#999999","#D55E00")) +
+  # scale_shape_manual(values=16:18)+
+  # scale_color_manual(values=c("#009E73", "#999999","#D55E00")) +
   annotate(geom="text", x=pc1V, y=pc2V, label=names(pc1V),
-              color="black",font=3)+
+              color="black")+
   geom_vline(aes(xintercept=0),
              color="black", size=1)+
   geom_hline(aes(yintercept=0),
@@ -284,10 +281,10 @@ bi_plot_2 <- bip |>
   ggplot(aes(x=pc1c,y=pc3c,color = as_factor(grupo)))+
   geom_point() + 
   theme_minimal() +
-  scale_shape_manual(values=16:18)+
-  scale_color_manual(values=c("#009E73", "#999999","#D55E00")) +
+  # scale_shape_manual(values=16:18)+
+  # scale_color_manual(values=c("#009E73", "#999999","#D55E00")) +
   annotate(geom="text", x=pc1V, y=pc3V, label=names(pc1V),
-              color="black",font=3)+
+              color="black")+
   geom_vline(aes(xintercept=0),
              color="black", size=1)+
   geom_hline(aes(yintercept=0),
@@ -335,9 +332,9 @@ writexl::write_xlsx(data.frame(tabelapca) |>
   ) |> 
   add_column(grupo) |> 
   ggplot(aes(x=x,y=y,color=as_factor(grupo))) +
-  geom_point() +
-  scale_shape_manual(values=16:18)+
-  scale_color_manual(values=c("#009E73", "#999999","#D55E00")) 
+  geom_point() # +
+  # scale_shape_manual(values=16:18)+
+  # scale_color_manual(values=c("#009E73", "#999999","#D55E00")) 
 ```
 
 ``` r
@@ -387,9 +384,185 @@ data_set |>
   geom_point()
 ```
 
-## 3 Análise geoestatítica
+## 3 Aprendizado de Máquina Estatístico
 
-### 3.1 Criando os contornos
+### Definindo a Base de treino e teste
+
+``` r
+data_set_ml <- data_set  |>  
+  janitor::clean_names() |> 
+  drop_na() |> 
+  filter(tch >= 25)
+tch_initial_split <- initial_split(data_set_ml, prop = 0.80)
+tch_train <- training(tch_initial_split)
+# tch_test <- testing(tch_initial_split)
+# visdat::vis_miss(tch_test)
+tch_train  %>% 
+  ggplot(aes(x=tch, y=..density..))+
+  geom_histogram(bins = 30, color="black",  fill="lightgray")+
+  geom_density(alpha=.05,fill="red")+
+  theme_bw() +
+  labs(x="tch - treino", y = "Densidade")
+```
+
+``` r
+tch_testing <- testing(tch_initial_split)
+tch_testing  |> 
+  ggplot(aes(x=tch, y=..density..))+
+  geom_histogram(bins = 30, color="black",  fill="lightgray")+
+  geom_density(alpha=.05,fill="blue")+
+  theme_bw() +
+  labs(x="tch - teste", y = "Densidade")
+```
+
+``` r
+tch_train |> 
+  select(tch:s) |> 
+  cor() |> 
+  corrplot::corrplot( method = "color",
+         outline = T,,
+         addgrid.col = "darkgray",cl.pos = "r", tl.col = "black",
+         tl.cex = 1, cl.cex = 1, type = "upper", bg="azure2",
+         diag = FALSE,
+         addCoef.col = "black",
+         cl.ratio = 0.2,
+         cl.length = 5,
+         number.cex = 0.8)
+```
+
+### Definindo a `receita` da análise
+
+``` r
+tch_recipe <- recipe(tch ~ ., 
+                      data = tch_train  |>  
+            select(unidade,ambiente,textura,
+                   corte,tch:s,variedade) 
+) |>  
+  step_naomit() %>%  
+  step_zv(all_predictors())  |> 
+  step_impute_median(where(is.numeric)) |> # inputação da mediana nos   
+  step_normalize(all_numeric_predictors()) |> # padronização dos dados  
+  step_novel(all_nominal_predictors())  |># trata categorias novas 
+  step_dummy(all_nominal_predictors()) # variáveis categóricas
+bake(prep(tch_recipe), new_data = NULL)
+```
+
+### Definindo a reamostragem
+
+``` r
+tch_resamples <- vfold_cv(tch_train, v = 5) 
+```
+
+## REDE NEURAL ARTIFICIAL
+
+### Definição do Modelo de RNA - MultiLayer Perceptron
+
+``` r
+tch_nn_model <- mlp() |>  # margin sempre para regressão
+  set_mode("regression") |> 
+  set_engine("nnet")
+```
+
+### Definindo os parâmetros de tunagem
+
+``` r
+tch_nn_model <- mlp(
+  hidden_units = tune(),
+  penalty = tune(),
+  epochs = tune()
+  ) |>  # margin sempre para regressão
+  set_mode("regression") |> 
+  set_engine("nnet")
+```
+
+### Workflow e tunagem
+
+``` r
+tch_nn_wf <- workflow()   |> 
+  add_model(tch_nn_model) |> 
+  add_recipe(tch_recipe)
+
+grid_nn <- grid_regular(
+  hidden_units(range = c(2, 30)), ## tentar até 250
+  penalty(range = c(-7, 0), trans = scales::log10_trans()), ## no máximo 30
+  epochs(range = c(3, 20)),
+  levels = c(3, 3, 3)
+)
+
+tch_nn_tune_grid <- tune_grid(
+  tch_nn_wf,
+  resamples = tch_resamples,
+  grid = grid_nn,
+  metrics = metric_set(rmse)
+)
+autoplot(tch_nn_tune_grid)
+```
+
+### Coletando métricas
+
+``` r
+collect_metrics(tch_nn_tune_grid)
+tch_nn_tune_grid |> 
+  show_best(metric = "rmse", n = 6)
+```
+
+### Desempenho do modelo final
+
+``` r
+tch_nn_best_params <- select_best(tch_nn_tune_grid, metric = "rmse")
+tch_nn_wf <- tch_nn_wf |> 
+  finalize_workflow(tch_nn_best_params)
+tch_nn_last_fit <- last_fit(tch_nn_wf, tch_initial_split)
+
+## Criando os preditos
+tch_test_preds <- bind_rows(
+  collect_predictions(tch_nn_last_fit)  |> 
+    mutate(modelo = "nn"))
+
+tch_test <- testing(tch_initial_split)
+
+tch_test_preds |> 
+  ggplot(aes(x=.pred, y=tch)) +
+  geom_point()+
+  theme_bw() +
+  geom_smooth(method = "lm") +
+  stat_regline_equation(ggplot2::aes(
+  label =  paste(..eq.label.., ..rr.label.., sep = "*plain(\",\")~~"))) +
+  geom_abline (slope=1, linetype = "dashed", color="Red")
+```
+
+``` r
+tch_nn_last_fit_model <- tch_nn_last_fit$.workflow[[1]]$fit$fit
+vip(tch_nn_last_fit_model,
+    aesthetics = list(color = "black", fill = "orange")) +
+    theme(axis.text.y=element_text(size=rel(1.5)),
+          axis.text.x=element_text(size=rel(1.5)),
+          axis.title.x=element_text(size=rel(1.5))
+          ) +
+  theme_bw()
+```
+
+### Principais Métricas
+
+``` r
+da <- tch_test_preds |> 
+  filter(tch > 0, .pred>0 )
+
+my_r <- cor(da$tch,da$.pred)
+my_r2 <- my_r*my_r
+my_mse <- Metrics::mse(da$tch,da$.pred)
+my_rmse <- Metrics::rmse(da$tch,
+                         da$.pred)
+my_mae <- Metrics::mae(da$tch,da$.pred)
+my_mape <- Metrics::mape(da$tch,da$.pred)*100
+
+vector_of_metrics <- c(r=my_r, R2=my_r2, MSE=my_mse, RMSE=my_rmse, MAE=my_mae, MAPE=my_mape)
+print(data.frame(vector_of_metrics))
+```
+
+## 4 Análise geoestatítica
+
+### 4.1 Criando os contornos
 
 #### Contorno para POT
 
@@ -503,7 +676,7 @@ contorno_total |> ggplot(aes(x = x, y = y, group = unidade, fill = unidade)) +
              aes(x,y,color=unidade))
 ```
 
-### 3.2 Comparação - Variáveis Originais e Log transformadas
+### 4.2 Comparação - Variáveis Originais e Log transformadas
 
 ``` r
 map(var_names, ~{
@@ -525,7 +698,7 @@ map(var_names, ~{
 })
 ```
 
-### 3.3 Análise geoestatística CAT
+### 4.3 Análise geoestatística CAT
 
 #### Separando o banco e transformar se necessário
 
@@ -559,8 +732,8 @@ form <- z ~ 1 # fórmula da função variogram
 ``` r
 vari_exp <- variogram(form, data = data_set_aux,
                       cressie = FALSE,
-                      cutoff = 0.10, # distância máxima do semivariograma
-                      width = .008) # distância entre pontos
+                      cutoff = 0.50, # distância máxima do semivariograma
+                      width = .01) # distância entre pontos
 vari_exp  |>  
  ggplot(aes(x=dist, y=gamma)) +
  geom_point() +
@@ -679,7 +852,7 @@ Estimar o atributo para locais não amostrados.
 #                    unidade_analise,"-",str_remove(variavel,"%"),".rds"))
 ```
 
-### 3.4 Análise geoestatística para POT
+### 4.4 Análise geoestatística para POT
 
 #### Separando o banco e transformar se necessário
 
@@ -711,8 +884,8 @@ form <- z ~ 1 # fórmula da função variogram
 ``` r
 vari_exp <- variogram(form, data = data_set_aux,
                       cressie = FALSE,
-                      cutoff = 0.15, # distância máxima do semivariograma
-                      width = .008) # distância entre pontos
+                      cutoff = 0.05, # distância máxima do semivariograma
+                      width = .004) # distância entre pontos
 vari_exp  |>  
  ggplot(aes(x=dist, y=gamma)) +
  geom_point() +
