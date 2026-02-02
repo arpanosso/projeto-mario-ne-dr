@@ -1,5 +1,5 @@
 ---
-title: "Decision Tree"
+title: "XGBoost"
 output: html_document
 date: "2025-08-22"
 ---
@@ -243,61 +243,266 @@ tch_resamples <- vfold_cv(tch_train, v = 5)
 ```
 
 
-## ÁRVORES DE DECISÃO - DECISION TREE - DT
+## XGBoost
 
 ### Definindo os parâmetros de tunagem
 
 ```{r}
-tch_dt_model <- decision_tree(
-  cost_complexity = tune(), # Quanto maior mais poda é realizada na árvore,
-  tree_depth = tune(),  # Limitar evita criação de regras complexas 
-  min_n = tune() #número mín de obs em um nó para ser / em sub-nós.
-)  |> 
-  set_mode("regression")  |> 
-  set_engine("rpart")
+cores=4
+tch_xgb_model <- boost_tree(
+  mtry = 0.8,
+  trees = tune(), # <---------------
+  min_n = 5,
+  tree_depth = 4,
+  loss_reduction = 0, # lambda
+  learn_rate = tune(), # epsilon
+  sample_size = 0.8
+)  %>%
+  set_mode("regression")  %>%
+  set_engine("xgboost", nthread = cores, counts = FALSE)
 ```
 
 ### Workflow e tunagem
 
 ```{r}
-tch_dt_wf <- workflow()   |> 
-  add_model(tch_dt_model) |> 
+tch_xgb_wf <- workflow()   |> 
+  add_model(tch_xgb_model) |> 
   add_recipe(tch_recipe)
 
-grid_dt <- grid_regular( 
-  cost_complexity(c(-8, -2)), 
-  tree_depth(range = c(5, 30)), 
-  min_n(range = c(2, 500)), 
-  levels = 5) 
+grid_xgb <- grid_regular(
+  learn_rate(range =  c(0.005, 0.3)), ## <---------
+  trees(range = c(3, 100)), ## <---------
+  levels = 2 
+)
+```
 
-tch_dt_tune_grid <- tune_grid(
-  tch_dt_wf,
+### PASSO 1
+
+```{r}
+tch_xgb_tune_grid <- tune_grid(
+ tch_xgb_wf,
   resamples = tch_resamples,
-  grid = grid_dt,
+  grid = grid_xgb,
   metrics = metric_set(rmse)
 )
-autoplot(tch_dt_tune_grid)
+autoplot(tch_xgb_tune_grid)
 ```
 
 ### Coletando métricas
 
 ```{r}
-collect_metrics(tch_dt_tune_grid)
-tch_dt_tune_grid |> 
+collect_metrics(tch_xgb_tune_grid)
+tch_xgb_tune_grid |> 
   show_best(metric = "rmse", n = 6)
+tch_xgb_select_best_passo1 <- tch_xgb_tune_grid %>%
+  select_best(metric = "rmse")
+tch_xgb_select_best_passo1
 ```
+
+
+### Passo 2
+```{r}
+tch_xgb_model <- boost_tree(
+  mtry = 0.8,
+  trees = tch_xgb_select_best_passo1$trees,
+  min_n = tune(),
+  tree_depth = tune(),
+  loss_reduction = 0,
+  learn_rate = tch_xgb_select_best_passo1$learn_rate,
+  sample_size = 0.8
+) %>%
+  set_mode("regression")  %>%
+  set_engine("xgboost", nthread = cores, counts = FALSE)
+
+#### Workflow
+tch_xgb_wf <- workflow() %>%
+    add_model(tch_xgb_model)   %>%
+    add_recipe(tch_recipe)
+
+#### Grid
+tch_xgb_grid <- grid_regular(
+  tree_depth(range = c(1, 4)), ## <---------
+  min_n(range = c(5, 60)), ## <---------
+  levels = 2 ## <---------
+)
+```
+
+
+```{r}
+tch_xgb_tune_grid <- tch_xgb_wf   %>%
+  tune_grid(
+    resamples =tch_resamples,
+    grid = tch_xgb_grid,
+    control = control_grid(save_pred = TRUE, verbose = FALSE, allow_par = TRUE),
+    metrics = metric_set(rmse)
+  )
+autoplot(tch_xgb_tune_grid)
+```
+
+
+
+```{r}
+tch_xgb_tune_grid  %>%
+  show_best(metric = "rmse", n = 6)
+tch_xgb_select_best_passo2 <- tch_xgb_tune_grid  %>%
+  select_best(metric = "rmse")
+tch_xgb_select_best_passo2
+```
+
+## Passo 3
+```{r}
+tch_xgb_model <- boost_tree(
+  mtry = 0.8,
+  trees = tch_xgb_select_best_passo1$trees,
+  min_n = tch_xgb_select_best_passo2$min_n,
+  tree_depth = tch_xgb_select_best_passo2$tree_depth,
+  loss_reduction =tune(),
+  learn_rate = tch_xgb_select_best_passo1$learn_rate,
+  sample_size = 0.8
+)  %>%
+  set_mode("regression")  %>%
+  set_engine("xgboost", nthread = cores, counts = FALSE)
+
+#### Workflow
+tch_xgb_wf <- workflow()  %>%
+    add_model(tch_xgb_model)  %>%
+    add_recipe(tch_recipe)
+
+#### Grid
+tch_xgb_grid <- grid_regular(
+  loss_reduction(range = c(0.01, 8)), ## <---------
+  levels = 2## <---------
+)
+
+tch_xgb_tune_grid <- tch_xgb_wf   %>%
+  tune_grid(
+    resamples = tch_resamples,
+    grid = tch_xgb_grid,
+    control = control_grid(save_pred = TRUE,
+                           verbose = FALSE,
+                           allow_par = TRUE),
+    metrics = metric_set(rmse)
+  )
+
+#### Melhores hiperparâmetros
+autoplot(tch_xgb_tune_grid)
+```
+
+
+```{r}
+tch_xgb_tune_grid   %>%   show_best(metric = "rmse", n = 5)
+tch_xgb_select_best_passo3 <- tch_xgb_tune_grid %>% select_best(metric = "rmse")
+tch_xgb_select_best_passo3
+```
+
+### Passo 4
+```{r}
+tch_xgb_model <- boost_tree(
+  mtry = tune(),
+  trees = tch_xgb_select_best_passo1$trees,
+  min_n = tch_xgb_select_best_passo2$min_n,
+  tree_depth = tch_xgb_select_best_passo2$tree_depth,
+  loss_reduction = tch_xgb_select_best_passo3$loss_reduction,
+  learn_rate = tch_xgb_select_best_passo1$learn_rate,
+  sample_size = tune()
+)%>%
+  set_mode("regression")  |>
+  set_engine("xgboost", nthread = cores, counts = FALSE)
+
+#### Workflow
+tch_xgb_wf <- workflow()  %>%
+    add_model(tch_xgb_model)  %>%
+    add_recipe(tch_recipe)
+
+#### Grid
+tch_xgb_grid <- expand.grid(
+    sample_size = seq(0.5, 1.0, length.out = 2), ## <---------
+    mtry = seq(0.1, 1.0, length.out = 2) ## <---------
+)
+
+tch_xgb_tune_grid <- tch_xgb_wf   %>%
+  tune_grid(
+    resamples = tch_resamples,
+    grid = tch_xgb_grid,
+    control = control_grid(save_pred = TRUE,
+                           verbose = FALSE,
+                           allow_par = TRUE),
+    metrics = metric_set(rmse)
+  )
+
+autoplot(tch_xgb_tune_grid)
+```
+
+```{r}
+tch_xgb_tune_grid  %>%
+  show_best(metric = "rmse", n = 5)
+tch_xgb_select_best_passo4 <- tch_xgb_tune_grid   %>%
+  select_best(metric = "rmse")
+tch_xgb_select_best_passo4
+```
+
+
+### Passo 5
+
+```{r}
+tch_xgb_model <- boost_tree(
+  mtry = tch_xgb_select_best_passo4$mtry,
+  trees = tune(),
+  min_n = tch_xgb_select_best_passo2$min_n,
+  tree_depth = tch_xgb_select_best_passo2$tree_depth,
+  loss_reduction = tch_xgb_select_best_passo3$loss_reduction,
+  learn_rate = tune(),
+  sample_size = tch_xgb_select_best_passo4$sample_size
+) %>%
+  set_mode("regression")  %>%
+  set_engine("xgboost", nthread = cores, counts = FALSE)
+
+#### Workflow
+tch_xgb_wf <- workflow() %>%
+    add_model(tch_xgb_model)  %>%
+    add_recipe(tch_recipe)
+
+#### Grid
+tch_xgb_grid <- expand.grid(
+    learn_rate = c(0.10, 0.15, 0.25, 0.50),
+    trees = c(100, 250, 500)
+)
+
+tch_xgb_tune_grid <- tch_xgb_wf   %>%
+  tune_grid(
+    resamples = tch_resamples,
+    grid = tch_xgb_grid,
+    control = control_grid(save_pred = TRUE,
+                           verbose = FALSE,
+                           allow_par = TRUE),
+    metrics = metric_set(rmse)
+  )
+
+#### Melhores hiperparâmetros
+autoplot(tch_xgb_tune_grid)
+```
+
+```{r}
+tch_xgb_tune_grid  %>%
+  show_best(metric = "rmse", n = 5)
+tch_xgb_select_best_passo5 <- tch_xgb_tune_grid %>%
+  select_best(metric = "rmse")
+tch_xgb_select_best_passo5
+```
+
+
 
 ### Desempenho do modelo final
 ```{r}
-tch_dt_best_params <- select_best(tch_dt_tune_grid, metric = "rmse")
-tch_dt_wf <- tch_dt_wf |> 
-  finalize_workflow(tch_dt_best_params)
-tch_dt_last_fit <- last_fit(tch_dt_wf, tch_initial_split)
+tch_xgb_best_params <- select_best(tch_xgb_tune_grid, metric = "rmse")
+tch_xgb_wf <- tch_xgb_wf |> 
+  finalize_workflow(tch_xgb_best_params)
+tch_xgb_last_fit <- last_fit(tch_xgb_wf, tch_initial_split)
 
 ## Criando os preditos
 tch_test_preds <- bind_rows(
-  collect_predictions(tch_dt_last_fit)  |> 
-    mutate(modelo = "dt"))
+  collect_predictions(tch_xgb_last_fit)  |> 
+    mutate(modelo = "xgb"))
 
 tch_test <- testing(tch_initial_split)
 
@@ -312,8 +517,8 @@ tch_test_preds |>
 ```
 
 ```{r}
-vip_plot <-  tch_dt_last_fit_model <-tch_dt_last_fit$.workflow[[1]]$fit$fit
- vip(tch_dt_last_fit_model,
+vip_plot <-  tch_xgb_last_fit_model <-tch_xgb_last_fit$.workflow[[1]]$fit$fit
+ vip(tch_xgb_last_fit_model,
      aesthetics = list(color = "black", fill = "orange")) +
      theme(axis.text.y=element_text(size=rel(1.5)),
            axis.text.x=element_text(size=rel(1.5)),
@@ -339,12 +544,3 @@ vector_of_metrics <- c(r=my_r, R2=my_r2, MSE=my_mse, RMSE=my_rmse, MAE=my_mae, M
 print(data.frame(vector_of_metrics))
 ```
 
-### Visualização da árvore
-
-```{r} 
-tree_fit_rpart <- extract_fit_engine(tch_dt_last_fit) 
-  png("../output/decision-tree.png",         # File name
-       width = 1900, height = 1000)
-    rpart.plot::rpart.plot(tree_fit_rpart,cex=.8,roundint=FALSE)
-    dev.off()
-``` 
