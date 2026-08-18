@@ -23,7 +23,10 @@ library(corrplot)
 library(brulee)
 library(ggpubr)
 library(ISLR)
-library(vip)
+library(vip) 
+
+#install.packages("vip", repos =c("https://bgreenwell.r-universe.dev","https://cloud.r-project.org"))
+
 theme_set(theme_bw())
 ```
 
