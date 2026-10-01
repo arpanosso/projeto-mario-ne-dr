@@ -1525,18 +1525,18 @@ tch_recipe <- recipe(tch ~ .,
   step_zv(all_predictors())  
 bake(prep(tch_recipe), new_data = NULL)
 #> # A tibble: 14,124 × 27
-#>     corte     ca m_percent     sb    ctc       p    h_al v_percent       k
-#>     <dbl>  <dbl>     <dbl>  <dbl>  <dbl>   <dbl>   <dbl>     <dbl>   <dbl>
-#>  1  1.14  -0.869    0.606  -0.988 -0.762 -0.246   0.548    -1.18    0.189 
-#>  2  1.78  -1.73     6.20   -2.01  -1.53  -0.651   1.18     -3.43   -1.12  
-#>  3  1.14  -0.242   -0.408  -0.289 -0.288 -0.0665  0.0206   -0.120   0.0627
-#>  4 -1.41  -1.12     0.751  -1.19  -1.21  -0.0638  0.0383   -1.17   -0.764 
-#>  5  0.505 -1.14     0.0360 -1.08  -0.919 -0.716   0.410    -1.23   -0.738 
-#>  6 -1.41   0.893   -0.505   1.37   1.06   0.316  -0.768     1.28    0.379 
-#>  7 -0.771 -1.01    -0.529  -1.22  -1.56  -0.527  -0.659    -0.700  -0.659 
-#>  8 -0.133 -0.403   -0.188  -0.620 -0.929 -0.722  -0.631     0.0262 -0.927 
-#>  9  0.505  0.718   -0.529   0.640  0.285 -0.728  -0.808     1.01    0.418 
-#> 10 -0.133  1.22    -0.408   1.47   1.05  -1.20   -0.994     1.45    0.914 
+#>     corte      ca m_percent     sb     ctc       p   h_al v_percent       k
+#>     <dbl>   <dbl>     <dbl>  <dbl>   <dbl>   <dbl>  <dbl>     <dbl>   <dbl>
+#>  1  1.15   0.388     -0.373  0.185  0.465   0.135   0.625   -0.0769 -0.680 
+#>  2  0.834  0.474     -0.532  0.300  0.0800 -0.441  -0.586    0.650  -0.822 
+#>  3 -1.40   0.546     -0.532  1.16   0.834   0.0296 -0.832    1.25    2.89  
+#>  4 -1.08   0.361     -0.209  0.337 -0.0430 -0.0866 -0.858    0.914   0.0574
+#>  5  0.515 -0.0799    -0.435  0.288  0.0205  0.291  -0.632    0.711   1.74  
+#>  6  1.15  -1.16       1.23  -1.36  -0.990  -0.634   0.954   -2.01   -0.583 
+#>  7  1.15  -1.15       2.60  -1.16  -1.06   -0.374   0.314   -1.34   -0.339 
+#>  8  0.515 -0.377     -0.532 -0.136 -0.484  -0.780  -0.783    0.534   0.222 
+#>  9 -0.122  0.391     -0.201  0.269  0.613  -0.0649  0.720   -0.0874 -0.464 
+#> 10  0.515  0.244      0.102  0.310  0.171  -0.659  -0.357    0.541  -0.749 
 #> # ℹ 14,114 more rows
 #> # ℹ 18 more variables: mg <dbl>, mo <dbl>, p_h <dbl>, s <dbl>, tch <dbl>,
 #> #   ambiente_B.A <dbl>, ambiente_C <dbl>, ambiente_C.B <dbl>, ambiente_D <dbl>,
@@ -1552,91 +1552,73 @@ bake(prep(tch_recipe), new_data = NULL)
 tch_resamples <- vfold_cv(tch_train, v = 5)
 ```
 
-## REDE NEURAL ARTIFICIAL
-
-### Definição do Modelo de RNA - MultiLayer Perceptron
+## Random Forest
 
 ``` r
-tch_bl_model <- mlp() |>  # margin sempre para regressão
-  set_mode("regression") |>
-  set_engine("nnet")
-```
-
-### Definindo os parâmetros de tunagem
-
-``` r
-tch_bl_model <- mlp(
-  hidden_units = tune(),      # Número de neurônios nas camadas
-  # dropout = tune(),           # Dropout rate
-  learn_rate = tune(),        # Taxa de aprendizado
-  epochs = tune(),            # Número de épocas
-  penalty = tune(),            # Regularização L2
-  activation = tune() # tune()
-) %>% 
-  set_mode("regression") |> 
-  set_engine("brulee")
+tch_rf_model <- rand_forest(
+  min_n = tune(),
+  mtry = tune(),
+  trees = tune()
+) %>%
+  set_mode("regression") %>%
+  set_engine("ranger", importance = "impurity")
 ```
 
 ### Workflow e tunagem
 
 ``` r
-tch_bl_wf <- workflow()   |> 
-  add_model(tch_bl_model) |> 
+tch_rf_wf <- workflow()   |> 
+  add_model(tch_rf_model) |> 
   add_recipe(tch_recipe)
 
-grid_bl <- grid_regular(
-  hidden_units(range = c(10, 50)),
-  # dropout(range = c(0, 0.3)),
-  learn_rate(range = c(-3, -1)),
-  epochs(range = c(50, 200)),
-  penalty(range = c(-6, -3)),
-  activation("tanh"), # c("relu", "sigmoid","tanh", "leaky_relu") máximo 4
-  levels = c(2,1,1,1,1) # mudar 3 3 3 3 1 #### <-----
+grid_rf <- grid_latin_hypercube(
+  min_n(range = c(1, 10)),
+  mtry(range = c(8, 20)),
+  trees(range = c(150, 200)),
+  size = 2
 )
 
-tch_bl_tune_grid <- tune_grid(
-  tch_bl_wf,
+tch_rf_tune_grid <- tune_grid(
+  tch_rf_wf,
   resamples = tch_resamples,
-  grid = grid_bl,
+  grid = grid_rf,
   metrics = metric_set(rmse)
 )
-autoplot(tch_bl_tune_grid)
+autoplot(tch_rf_tune_grid)
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-26-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-25-1.png)<!-- -->
 
 ### Coletando métricas
 
 ``` r
-collect_metrics(tch_bl_tune_grid)
-#> # A tibble: 2 × 11
-#>   hidden_units  penalty epochs activation learn_rate .metric .estimator  mean
-#>          <int>    <dbl>  <int> <chr>           <dbl> <chr>   <chr>      <dbl>
-#> 1           10 0.000001     50 tanh            0.001 rmse    standard    21.0
-#> 2           50 0.000001     50 tanh            0.001 rmse    standard    21.0
-#> # ℹ 3 more variables: n <int>, std_err <dbl>, .config <chr>
-tch_bl_tune_grid |>
+collect_metrics(tch_rf_tune_grid)
+#> # A tibble: 2 × 9
+#>    mtry trees min_n .metric .estimator  mean     n std_err .config        
+#>   <int> <int> <int> <chr>   <chr>      <dbl> <int>   <dbl> <chr>          
+#> 1    13   159     6 rmse    standard    16.2     5   0.101 pre0_mod1_post0
+#> 2    17   189     1 rmse    standard    16.1     5   0.111 pre0_mod2_post0
+tch_rf_tune_grid |>
   show_best(metric = "rmse", n = 6)
-#> # A tibble: 2 × 11
-#>   hidden_units  penalty epochs activation learn_rate .metric .estimator  mean
-#>          <int>    <dbl>  <int> <chr>           <dbl> <chr>   <chr>      <dbl>
-#> 1           10 0.000001     50 tanh            0.001 rmse    standard    21.0
-#> 2           50 0.000001     50 tanh            0.001 rmse    standard    21.0
-#> # ℹ 3 more variables: n <int>, std_err <dbl>, .config <chr>
+#> # A tibble: 2 × 9
+#>    mtry trees min_n .metric .estimator  mean     n std_err .config        
+#>   <int> <int> <int> <chr>   <chr>      <dbl> <int>   <dbl> <chr>          
+#> 1    17   189     1 rmse    standard    16.1     5   0.111 pre0_mod2_post0
+#> 2    13   159     6 rmse    standard    16.2     5   0.101 pre0_mod1_post0
 ```
 
 ### Desempenho do modelo final
 
 ``` r
-tch_bl_best_params <- select_best(tch_bl_tune_grid, metric = "rmse")
-tch_bl_wf <- tch_bl_wf |>
-  finalize_workflow(tch_bl_best_params)
-tch_bl_last_fit <- last_fit(tch_bl_wf, tch_initial_split)
+tch_rf_best_params <- select_best(tch_rf_tune_grid, metric = "rmse")
+tch_rf_wf <- tch_rf_wf |>
+  finalize_workflow(tch_rf_best_params)
+tch_rf_last_fit <- last_fit(tch_rf_wf, tch_initial_split)
 
 ## Criando os preditos
 tch_test_preds <- bind_rows(
-  collect_predictions(tch_bl_last_fit)  |>
-    mutate(modelo = "bl"))
+  collect_predictions(tch_rf_last_fit)  |>
+    mutate(modelo = "rf"))
 
 tch_test <- testing(tch_initial_split)
 
@@ -1650,40 +1632,7 @@ tch_test_preds |>
   geom_abline (slope=1, linetype = "dashed", color="Red")
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-28-1.png)<!-- -->
-
-``` r
-vip_plot <- tch_bl_last_fit %>%
-  extract_workflow() %>%
-  vip(
-    method = "permute",
-    train = 
-      tch_bl_last_fit$.workflow[[1]]$pre$mold$predictors,
-    target = tch_bl_last_fit$.workflow[[1]]$pre$mold$outcomes$tch,
-    metric = "rmse",
-    nsim = 5,
-    pred_wrapper = function(object, newdata) {
-      predict(object, newdata)$.pred
-    },
-    aesthetics = list(color = "black", fill = "orange")
-  ) +
-  theme(
-    axis.text.x = element_text(
-      angle = 0,
-      hjust = 1,
-      size = rel(1.5)
-    ),
-    axis.text.y = element_text(size = rel(1.5)),
-    axis.title.x = element_text(size = rel(1.5))
-  )
-```
-
-![](README_files/figure-gfm/unnamed-chunk-29-1.png)<!-- -->
-
-``` r
-vip_plot
-#> NULL
-```
+![](README_files/figure-gfm/unnamed-chunk-27-1.png)<!-- -->
 
 ``` r
 library(dplyr)
@@ -1694,13 +1643,13 @@ library(rsample)
 library(vip)
 
 # 1. workflow final treinado
-wf <- extract_workflow(tch_bl_last_fit)
+wf <- extract_workflow(tch_rf_last_fit)
 
 # 2. recipe já treinado (parte "pre" do workflow)
 rec_trained <- extract_recipe(wf)
 
 # 3. dados brutos de treino (como entraram originalmente, antes do recipe)
-train_data <- training(tch_bl_last_fit$splits[[1]])
+train_data <- training(tch_rf_last_fit$splits[[1]])
 
 # 4. aplica o recipe UMA VEZ -> dados já prontos (imputação, dummies, etc.)
 baked_train <- bake(rec_trained, new_data = train_data)
@@ -1738,7 +1687,7 @@ vip_plot <- ggplot(vi_data_top10, aes(x = reorder(Variable, Importance), y = Imp
 vip_plot
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-30-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-28-1.png)<!-- -->
 
 ### Principais Métricas
 
@@ -1757,12 +1706,12 @@ my_mape <- Metrics::mape(da$tch,da$.pred)*100
 vector_of_metrics <- c(r=my_r, R2=my_r2, MSE=my_mse, RMSE=my_rmse, MAE=my_mae, MAPE=my_mape)
 print(data.frame(vector_of_metrics))
 #>      vector_of_metrics
-#> r            0.6891745
-#> R2           0.4749615
-#> MSE        566.5469498
-#> RMSE        23.8022467
-#> MAE         18.8680175
-#> MAPE        26.4251277
+#> r            0.8651397
+#> R2           0.7484667
+#> MSE        258.5850232
+#> RMSE        16.0805791
+#> MAE         12.1009411
+#> MAPE        17.3062262
 ```
 
 ## 3 Aprendizado de Máquina Estatístico - POT
@@ -1787,7 +1736,7 @@ tch_train  %>%
   labs(x="tch - treino", y = "Densidade")
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-32-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-30-1.png)<!-- -->
 
 ``` r
 tch_testing <- testing(tch_initial_split)
@@ -1799,7 +1748,7 @@ tch_testing  |>
   labs(x="tch - teste", y = "Densidade")
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-33-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-31-1.png)<!-- -->
 
 ``` r
 tch_train |>
@@ -1816,7 +1765,7 @@ tch_train |>
          number.cex = 0.8)
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-34-1.png)<!-- --> \###
+![](README_files/figure-gfm/unnamed-chunk-32-1.png)<!-- --> \###
 Definindo a `receita` da análise
 
 ``` r
@@ -1833,18 +1782,18 @@ tch_recipe <- recipe(tch ~ .,
   step_zv(all_predictors())  
 bake(prep(tch_recipe), new_data = NULL)
 #> # A tibble: 19,144 × 26
-#>     corte     ca m_percent      sb      ctc       p    h_al v_percent      k
-#>     <dbl>  <dbl>     <dbl>   <dbl>    <dbl>   <dbl>   <dbl>     <dbl>  <dbl>
-#>  1  1.10   0.551    -0.619  0.342  -0.00704 -0.143  -0.660     0.810  -0.536
-#>  2 -1.19   0.520    -0.426  0.755   0.489   -0.152  -0.454     0.917   0.521
-#>  3 -1.52   0.545    -0.505  0.411   0.349    0.201  -0.0923    0.478   0.727
-#>  4  0.445  1.24     -0.509  0.364  -0.363   -0.294  -1.40      1.42   -0.877
-#>  5  0.445  0.145    -0.584  0.808   0.628   -0.487  -0.294     0.836   3.67 
-#>  6  0.445  0.426    -0.316  0.593   0.421   -0.0531 -0.293     0.715  -0.244
-#>  7 -0.209 -0.549     0.928 -0.789  -0.612   -0.758   0.289    -0.867  -0.340
-#>  8 -0.862 -0.655    -0.243 -0.544  -0.843   -0.763  -0.630     0.0547 -0.676
-#>  9 -1.19  -0.215     0.731 -0.0754 -0.498   -0.289  -0.837     0.652  -0.266
-#> 10 -1.19   0.203    -0.402  0.492   0.653   -0.833   0.289     0.273  -0.702
+#>     corte      ca m_percent       sb     ctc        p    h_al v_percent      k
+#>     <dbl>   <dbl>     <dbl>    <dbl>   <dbl>    <dbl>   <dbl>     <dbl>  <dbl>
+#>  1  1.09   0.261     -0.610  0.151   -0.0556 -0.485   -0.397     0.498  -0.339
+#>  2 -0.210  0.133     -0.607 -0.0474   0.0526  1.26     0.194    -0.0363 -0.716
+#>  3 -1.19  -0.905      0.384 -1.16    -1.13   -0.283   -0.0422   -1.22   -0.759
+#>  4 -1.19   1.47      -0.480  1.65     1.43    0.305   -0.288     1.22   -0.427
+#>  5 -0.210 -0.0362    -0.674  0.00686 -0.392   0.00802 -0.719     0.679   0.153
+#>  6  1.09  -0.961      2.58  -0.900   -0.733  -0.592    0.260    -1.01   -0.379
+#>  7  0.442 -0.744      2.41  -0.721    0.149  -0.316    1.66     -1.44   -0.479
+#>  8  0.442 -0.819      0.241 -0.922   -0.419  -0.571    0.923    -1.38   -0.590
+#>  9  0.442 -0.339     -0.393 -0.446   -0.313  -0.0670   0.227    -0.432  -0.304
+#> 10 -1.19  -0.384     -0.444 -0.599   -0.656  -0.158   -0.159    -0.355  -0.605
 #> # ℹ 19,134 more rows
 #> # ℹ 17 more variables: mg <dbl>, mo <dbl>, p_h <dbl>, s <dbl>, tch <dbl>,
 #> #   ambiente_B.A <dbl>, ambiente_C.B <dbl>, ambiente_D <dbl>,
@@ -1860,91 +1809,73 @@ bake(prep(tch_recipe), new_data = NULL)
 tch_resamples <- vfold_cv(tch_train, v = 5)
 ```
 
-## REDE NEURAL ARTIFICIAL
-
-### Definição do Modelo de RNA - MultiLayer Perceptron
+## Random Forest
 
 ``` r
-tch_bl_model <- mlp() |>  # margin sempre para regressão
-  set_mode("regression") |>
-  set_engine("nnet")
-```
-
-### Definindo os parâmetros de tunagem
-
-``` r
-tch_bl_model <- mlp(
-  hidden_units = tune(),      # Número de neurônios nas camadas
-  # dropout = tune(),           # Dropout rate
-  learn_rate = tune(),        # Taxa de aprendizado
-  epochs = tune(),            # Número de épocas
-  penalty = tune(),            # Regularização L2
-  activation = tune() # tune()
-) %>% 
-  set_mode("regression") |> 
-  set_engine("brulee")
+tch_rf_model <- rand_forest(
+  min_n = tune(),
+  mtry = tune(),
+  trees = tune()
+) %>%
+  set_mode("regression") %>%
+  set_engine("ranger", importance = "impurity")
 ```
 
 ### Workflow e tunagem
 
 ``` r
-tch_bl_wf <- workflow()   |> 
-  add_model(tch_bl_model) |> 
+tch_rf_wf <- workflow()   |> 
+  add_model(tch_rf_model) |> 
   add_recipe(tch_recipe)
 
-grid_bl <- grid_regular(
-  hidden_units(range = c(10, 50)),
-  # dropout(range = c(0, 0.3)),
-  learn_rate(range = c(-3, -1)),
-  epochs(range = c(50, 200)),
-  penalty(range = c(-6, -3)),
-  activation("tanh"), # c("relu", "sigmoid","tanh", "leaky_relu") máximo 4
-  levels = c(2,1,1,1,1) # mudar 3 3 3 3 1 #### <-----
+grid_rf <- grid_latin_hypercube(
+  min_n(range = c(1, 10)),
+  mtry(range = c(8, 20)),
+  trees(range = c(150, 200)),
+  size = 2
 )
 
-tch_bl_tune_grid <- tune_grid(
-  tch_bl_wf,
+tch_rf_tune_grid <- tune_grid(
+  tch_rf_wf,
   resamples = tch_resamples,
-  grid = grid_bl,
+  grid = grid_rf,
   metrics = metric_set(rmse)
 )
-autoplot(tch_bl_tune_grid)
+autoplot(tch_rf_tune_grid)
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-39-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-36-1.png)<!-- -->
 
 ### Coletando métricas
 
 ``` r
-collect_metrics(tch_bl_tune_grid)
-#> # A tibble: 2 × 11
-#>   hidden_units  penalty epochs activation learn_rate .metric .estimator  mean
-#>          <int>    <dbl>  <int> <chr>           <dbl> <chr>   <chr>      <dbl>
-#> 1           10 0.000001     50 tanh            0.001 rmse    standard    19.8
-#> 2           50 0.000001     50 tanh            0.001 rmse    standard    20.2
-#> # ℹ 3 more variables: n <int>, std_err <dbl>, .config <chr>
-tch_bl_tune_grid |>
+collect_metrics(tch_rf_tune_grid)
+#> # A tibble: 2 × 9
+#>    mtry trees min_n .metric .estimator  mean     n std_err .config        
+#>   <int> <int> <int> <chr>   <chr>      <dbl> <int>   <dbl> <chr>          
+#> 1    13   152     2 rmse    standard    14.1     5   0.124 pre0_mod1_post0
+#> 2    18   193     7 rmse    standard    14.1     5   0.114 pre0_mod2_post0
+tch_rf_tune_grid |>
   show_best(metric = "rmse", n = 6)
-#> # A tibble: 2 × 11
-#>   hidden_units  penalty epochs activation learn_rate .metric .estimator  mean
-#>          <int>    <dbl>  <int> <chr>           <dbl> <chr>   <chr>      <dbl>
-#> 1           10 0.000001     50 tanh            0.001 rmse    standard    19.8
-#> 2           50 0.000001     50 tanh            0.001 rmse    standard    20.2
-#> # ℹ 3 more variables: n <int>, std_err <dbl>, .config <chr>
+#> # A tibble: 2 × 9
+#>    mtry trees min_n .metric .estimator  mean     n std_err .config        
+#>   <int> <int> <int> <chr>   <chr>      <dbl> <int>   <dbl> <chr>          
+#> 1    18   193     7 rmse    standard    14.1     5   0.114 pre0_mod2_post0
+#> 2    13   152     2 rmse    standard    14.1     5   0.124 pre0_mod1_post0
 ```
 
 ### Desempenho do modelo final
 
 ``` r
-tch_bl_best_params <- select_best(tch_bl_tune_grid, metric = "rmse")
-tch_bl_wf <- tch_bl_wf |>
-  finalize_workflow(tch_bl_best_params)
-tch_bl_last_fit <- last_fit(tch_bl_wf, tch_initial_split)
+tch_rf_best_params <- select_best(tch_rf_tune_grid, metric = "rmse")
+tch_rf_wf <- tch_rf_wf |>
+  finalize_workflow(tch_rf_best_params)
+tch_rf_last_fit <- last_fit(tch_rf_wf, tch_initial_split)
 
 ## Criando os preditos
 tch_test_preds <- bind_rows(
-  collect_predictions(tch_bl_last_fit)  |>
-    mutate(modelo = "bl"))
+  collect_predictions(tch_rf_last_fit)  |>
+    mutate(modelo = "rf"))
 
 tch_test <- testing(tch_initial_split)
 
@@ -1958,50 +1889,17 @@ tch_test_preds |>
   geom_abline (slope=1, linetype = "dashed", color="Red")
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-41-1.png)<!-- -->
-
-``` r
-vip_plot <- tch_bl_last_fit %>%
-  extract_workflow() %>%
-  vip(
-    method = "permute",
-    train = 
-      tch_bl_last_fit$.workflow[[1]]$pre$mold$predictors,
-    target = tch_bl_last_fit$.workflow[[1]]$pre$mold$outcomes$tch,
-    metric = "rmse",
-    nsim = 5,
-    pred_wrapper = function(object, newdata) {
-      predict(object, newdata)$.pred
-    },
-    aesthetics = list(color = "black", fill = "orange")
-  ) +
-  theme(
-    axis.text.x = element_text(
-      angle = 0,
-      hjust = 1,
-      size = rel(1.5)
-    ),
-    axis.text.y = element_text(size = rel(1.5)),
-    axis.title.x = element_text(size = rel(1.5))
-  )
-```
-
-![](README_files/figure-gfm/unnamed-chunk-42-1.png)<!-- -->
-
-``` r
-vip_plot
-#> NULL
-```
+![](README_files/figure-gfm/unnamed-chunk-38-1.png)<!-- -->
 
 ``` r
 # 1. workflow final treinado
-wf <- extract_workflow(tch_bl_last_fit)
+wf <- extract_workflow(tch_rf_last_fit)
 
 # 2. recipe já treinado (parte "pre" do workflow)
 rec_trained <- extract_recipe(wf)
 
 # 3. dados brutos de treino (como entraram originalmente, antes do recipe)
-train_data <- training(tch_bl_last_fit$splits[[1]])
+train_data <- training(tch_rf_last_fit$splits[[1]])
 
 # 4. aplica o recipe UMA VEZ -> dados já prontos (imputação, dummies, etc.)
 baked_train <- bake(rec_trained, new_data = train_data)
@@ -2036,11 +1934,10 @@ vip_plot <- ggplot(vi_data_top10, aes(x = reorder(Variable, Importance), y = Imp
     axis.text.x  = element_text(angle = 0, hjust = 0.5, size = rel(1.5)),
     axis.title.x = element_text(size = rel(1.5))
   )
-
 vip_plot
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-43-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-39-1.png)<!-- -->
 
 ### Principais Métricas
 
@@ -2059,13 +1956,853 @@ my_mape <- Metrics::mape(da$tch,da$.pred)*100
 vector_of_metrics <- c(r=my_r, R2=my_r2, MSE=my_mse, RMSE=my_rmse, MAE=my_mae, MAPE=my_mape)
 print(data.frame(vector_of_metrics))
 #>      vector_of_metrics
-#> r            0.7767785
-#> R2           0.6033848
-#> MSE        358.2734132
-#> RMSE        18.9281117
-#> MAE         14.7717347
-#> MAPE        18.8101185
+#> r            0.8911061
+#> R2           0.7940701
+#> MSE        195.2303152
+#> RMSE        13.9724842
+#> MAE         10.2006639
+#> MAPE        13.1866375
 ```
+
+<!-- ## 3 Aprendizado de Máquina Estatístico - CAT -->
+
+<!-- ### Definindo a Base de treino e teste -->
+
+<!-- ```{r} -->
+
+<!-- data_set_ml <- data_set  |> -->
+
+<!--   filter(unidade == "CAT") |>  -->
+
+<!--   janitor::clean_names() |> -->
+
+<!--   drop_na() |> -->
+
+<!--   filter(tch >= 25) -->
+
+<!-- tch_initial_split <- initial_split(data_set_ml, prop = 0.80) -->
+
+<!-- tch_train <- training(tch_initial_split) -->
+
+<!-- # tch_test <- testing(tch_initial_split) -->
+
+<!-- # visdat::vis_miss(tch_test) -->
+
+<!-- tch_train  %>% -->
+
+<!--   ggplot(aes(x=tch, y=..density..))+ -->
+
+<!--   geom_histogram(bins = 30, color="black",  fill="lightgray")+ -->
+
+<!--   geom_density(alpha=.05,fill="red")+ -->
+
+<!--   theme_bw() + -->
+
+<!--   labs(x="tch - treino", y = "Densidade") -->
+
+<!-- ``` -->
+
+<!-- ```{r} -->
+
+<!-- tch_testing <- testing(tch_initial_split) -->
+
+<!-- tch_testing  |> -->
+
+<!--   ggplot(aes(x=tch, y=..density..))+ -->
+
+<!--   geom_histogram(bins = 30, color="black",  fill="lightgray")+ -->
+
+<!--   geom_density(alpha=.05,fill="blue")+ -->
+
+<!--   theme_bw() + -->
+
+<!--   labs(x="tch - teste", y = "Densidade") -->
+
+<!-- ``` -->
+
+<!-- ```{r} -->
+
+<!-- tch_train |> -->
+
+<!--   select(tch:s) |> -->
+
+<!--   cor() |> -->
+
+<!--   corrplot::corrplot( method = "color", -->
+
+<!--          outline = T,, -->
+
+<!--          addgrid.col = "darkgray",cl.pos = "r", tl.col = "black", -->
+
+<!--          tl.cex = 1, cl.cex = 1, type = "upper", bg="azure2", -->
+
+<!--          diag = FALSE, -->
+
+<!--          addCoef.col = "black", -->
+
+<!--          cl.ratio = 0.2, -->
+
+<!--          cl.length = 5, -->
+
+<!--          number.cex = 0.8) -->
+
+<!-- ``` -->
+
+<!-- ### Definindo a `receita` da análise -->
+
+<!-- ```{r} -->
+
+<!-- tch_recipe <- recipe(tch ~ ., -->
+
+<!--                       data = tch_train |>    -->
+
+<!--             select(ambiente,textura, -->
+
+<!--                    corte,tch:s,variedade) -->
+
+<!-- ) |> -->
+
+<!--   step_naomit() %>% -->
+
+<!--   step_impute_median(where(is.numeric)) |> # inputação da mediana nos -->
+
+<!--   step_normalize(all_numeric_predictors()) |> # padronização dos dados -->
+
+<!--   step_novel(all_nominal_predictors())  |># trata categorias novas -->
+
+<!--   step_dummy(all_nominal_predictors())|> # variáveis categóricas -->
+
+<!--   step_zv(all_predictors())   -->
+
+<!-- bake(prep(tch_recipe), new_data = NULL) -->
+
+<!-- ``` -->
+
+<!-- ### Definindo a reamostragem -->
+
+<!-- ```{r} -->
+
+<!-- tch_resamples <- vfold_cv(tch_train, v = 5) -->
+
+<!-- ``` -->
+
+<!-- ## REDE NEURAL ARTIFICIAL -->
+
+<!-- ### Definição do Modelo de RNA - MultiLayer Perceptron -->
+
+<!-- ```{r} -->
+
+<!-- tch_bl_model <- mlp() |>  # margin sempre para regressão -->
+
+<!--   set_mode("regression") |> -->
+
+<!--   set_engine("nnet") -->
+
+<!-- ``` -->
+
+<!-- ### Definindo os parâmetros de tunagem -->
+
+<!-- ```{r} -->
+
+<!-- tch_bl_model <- mlp( -->
+
+<!--   hidden_units = tune(),      # Número de neurônios nas camadas -->
+
+<!--   # dropout = tune(),           # Dropout rate -->
+
+<!--   learn_rate = tune(),        # Taxa de aprendizado -->
+
+<!--   epochs = tune(),            # Número de épocas -->
+
+<!--   penalty = tune(),            # Regularização L2 -->
+
+<!--   activation = tune() # tune() -->
+
+<!-- ) %>%  -->
+
+<!--   set_mode("regression") |>  -->
+
+<!--   set_engine("brulee") -->
+
+<!-- ``` -->
+
+<!-- ### Workflow e tunagem -->
+
+<!-- ```{r} -->
+
+<!-- tch_bl_wf <- workflow()   |>  -->
+
+<!--   add_model(tch_bl_model) |>  -->
+
+<!--   add_recipe(tch_recipe) -->
+
+<!-- grid_bl <- grid_regular( -->
+
+<!--   hidden_units(range = c(10, 50)), -->
+
+<!--   # dropout(range = c(0, 0.3)), -->
+
+<!--   learn_rate(range = c(-3, -1)), -->
+
+<!--   epochs(range = c(50, 200)), -->
+
+<!--   penalty(range = c(-6, -3)), -->
+
+<!--   activation("tanh"), # c("relu", "sigmoid","tanh", "leaky_relu") máximo 4 -->
+
+<!--   levels = c(2,1,1,1,1) # mudar 3 3 3 3 1 #### <----- -->
+
+<!-- ) -->
+
+<!-- tch_bl_tune_grid <- tune_grid( -->
+
+<!--   tch_bl_wf, -->
+
+<!--   resamples = tch_resamples, -->
+
+<!--   grid = grid_bl, -->
+
+<!--   metrics = metric_set(rmse) -->
+
+<!-- ) -->
+
+<!-- autoplot(tch_bl_tune_grid) -->
+
+<!-- ``` -->
+
+<!-- ### Coletando métricas -->
+
+<!-- ```{r} -->
+
+<!-- collect_metrics(tch_bl_tune_grid) -->
+
+<!-- tch_bl_tune_grid |> -->
+
+<!--   show_best(metric = "rmse", n = 6) -->
+
+<!-- ``` -->
+
+<!-- ### Desempenho do modelo final -->
+
+<!-- ```{r} -->
+
+<!-- tch_bl_best_params <- select_best(tch_bl_tune_grid, metric = "rmse") -->
+
+<!-- tch_bl_wf <- tch_bl_wf |> -->
+
+<!--   finalize_workflow(tch_bl_best_params) -->
+
+<!-- tch_bl_last_fit <- last_fit(tch_bl_wf, tch_initial_split) -->
+
+<!-- ## Criando os preditos -->
+
+<!-- tch_test_preds <- bind_rows( -->
+
+<!--   collect_predictions(tch_bl_last_fit)  |> -->
+
+<!--     mutate(modelo = "bl")) -->
+
+<!-- tch_test <- testing(tch_initial_split) -->
+
+<!-- tch_test_preds |> -->
+
+<!--   ggplot(aes(x=.pred, y=tch)) + -->
+
+<!--   geom_point()+ -->
+
+<!--   theme_bw() + -->
+
+<!--   geom_smooth(method = "lm") + -->
+
+<!--   stat_regline_equation(ggplot2::aes( -->
+
+<!--   label =  paste(..eq.label.., ..rr.label.., sep = "*plain(\",\")~~"))) + -->
+
+<!--   geom_abline (slope=1, linetype = "dashed", color="Red") -->
+
+<!-- ``` -->
+
+<!-- ```{r} -->
+
+<!-- vip_plot <- tch_bl_last_fit %>% -->
+
+<!--   extract_workflow() %>% -->
+
+<!--   vip( -->
+
+<!--     method = "permute", -->
+
+<!--     train =  -->
+
+<!--       tch_bl_last_fit$.workflow[[1]]$pre$mold$predictors, -->
+
+<!--     target = tch_bl_last_fit$.workflow[[1]]$pre$mold$outcomes$tch, -->
+
+<!--     metric = "rmse", -->
+
+<!--     nsim = 5, -->
+
+<!--     pred_wrapper = function(object, newdata) { -->
+
+<!--       predict(object, newdata)$.pred -->
+
+<!--     }, -->
+
+<!--     aesthetics = list(color = "black", fill = "orange") -->
+
+<!--   ) + -->
+
+<!--   theme( -->
+
+<!--     axis.text.x = element_text( -->
+
+<!--       angle = 0, -->
+
+<!--       hjust = 1, -->
+
+<!--       size = rel(1.5) -->
+
+<!--     ), -->
+
+<!--     axis.text.y = element_text(size = rel(1.5)), -->
+
+<!--     axis.title.x = element_text(size = rel(1.5)) -->
+
+<!--   ) -->
+
+<!-- vip_plot -->
+
+<!-- ``` -->
+
+<!-- ```{r} -->
+
+<!-- library(dplyr) -->
+
+<!-- library(ggplot2) -->
+
+<!-- library(recipes) -->
+
+<!-- library(parsnip) -->
+
+<!-- library(rsample) -->
+
+<!-- library(vip) -->
+
+<!-- # 1. workflow final treinado -->
+
+<!-- wf <- extract_workflow(tch_bl_last_fit) -->
+
+<!-- # 2. recipe já treinado (parte "pre" do workflow) -->
+
+<!-- rec_trained <- extract_recipe(wf) -->
+
+<!-- # 3. dados brutos de treino (como entraram originalmente, antes do recipe) -->
+
+<!-- train_data <- training(tch_bl_last_fit$splits[[1]]) -->
+
+<!-- # 4. aplica o recipe UMA VEZ -> dados já prontos (imputação, dummies, etc.) -->
+
+<!-- baked_train <- bake(rec_trained, new_data = train_data) -->
+
+<!-- # 5. extrai só o modelo ajustado, sem o recipe -->
+
+<!-- model_fit <- extract_fit_parsnip(wf) -->
+
+<!-- # 6. calcula a importância por permutação, isolando o modelo -->
+
+<!-- vi_data <- vi( -->
+
+<!--   model_fit, -->
+
+<!--   method = "permute", -->
+
+<!--   train  = baked_train, -->
+
+<!--   target = "tch", -->
+
+<!--   metric = "rmse", -->
+
+<!--   nsim   = 5, -->
+
+<!--   pred_wrapper = function(object, newdata) predict(object, newdata)$.pred -->
+
+<!-- ) -->
+
+<!-- # 7. mantém só as 10 variáveis mais importantes -->
+
+<!-- vi_data_top10 <- vi_data %>% -->
+
+<!--   arrange(desc(Importance)) %>% -->
+
+<!--   slice_head(n = 10) -->
+
+<!-- # 8. gráfico final, com nomes das variáveis na horizontal -->
+
+<!-- vip_plot <- ggplot(vi_data_top10, aes(x = reorder(Variable, Importance), y = Importance)) + -->
+
+<!--   geom_col(color = "black", fill = "orange") + -->
+
+<!--   coord_flip() + -->
+
+<!--   labs(x = NULL, y = "Importance") + -->
+
+<!--   theme_bw() + -->
+
+<!--   theme( -->
+
+<!--     axis.text.y  = element_text(angle = 0, hjust = 1, size = rel(1.5)), -->
+
+<!--     axis.text.x  = element_text(angle = 0, hjust = 0.5, size = rel(1.5)), -->
+
+<!--     axis.title.x = element_text(size = rel(1.5)) -->
+
+<!--   ) -->
+
+<!-- vip_plot -->
+
+<!-- ``` -->
+
+<!-- ### Principais Métricas -->
+
+<!-- ```{r} -->
+
+<!-- da <- tch_test_preds |> -->
+
+<!--   filter(tch > 0, .pred>0 ) -->
+
+<!-- my_r <- cor(da$tch,da$.pred) -->
+
+<!-- my_r2 <- my_r*my_r -->
+
+<!-- my_mse <- Metrics::mse(da$tch,da$.pred) -->
+
+<!-- my_rmse <- Metrics::rmse(da$tch, -->
+
+<!--                          da$.pred) -->
+
+<!-- my_mae <- Metrics::mae(da$tch,da$.pred) -->
+
+<!-- my_mape <- Metrics::mape(da$tch,da$.pred)*100 -->
+
+<!-- vector_of_metrics <- c(r=my_r, R2=my_r2, MSE=my_mse, RMSE=my_rmse, MAE=my_mae, MAPE=my_mape) -->
+
+<!-- print(data.frame(vector_of_metrics)) -->
+
+<!-- ``` -->
+
+<!-- ## 3 Aprendizado de Máquina Estatístico - POT -->
+
+<!-- ### Definindo a Base de treino e teste -->
+
+<!-- ```{r} -->
+
+<!-- data_set_ml <- data_set  |> -->
+
+<!--   filter(unidade == "POT") |>  -->
+
+<!--   janitor::clean_names() |> -->
+
+<!--   drop_na() |> -->
+
+<!--   filter(tch >= 25) -->
+
+<!-- tch_initial_split <- initial_split(data_set_ml, prop = 0.80) -->
+
+<!-- tch_train <- training(tch_initial_split) -->
+
+<!-- # tch_test <- testing(tch_initial_split) -->
+
+<!-- # visdat::vis_miss(tch_test) -->
+
+<!-- tch_train  %>% -->
+
+<!--   ggplot(aes(x=tch, y=..density..))+ -->
+
+<!--   geom_histogram(bins = 30, color="black",  fill="lightgray")+ -->
+
+<!--   geom_density(alpha=.05,fill="red")+ -->
+
+<!--   theme_bw() + -->
+
+<!--   labs(x="tch - treino", y = "Densidade") -->
+
+<!-- ``` -->
+
+<!-- ```{r} -->
+
+<!-- tch_testing <- testing(tch_initial_split) -->
+
+<!-- tch_testing  |> -->
+
+<!--   ggplot(aes(x=tch, y=..density..))+ -->
+
+<!--   geom_histogram(bins = 30, color="black",  fill="lightgray")+ -->
+
+<!--   geom_density(alpha=.05,fill="blue")+ -->
+
+<!--   theme_bw() + -->
+
+<!--   labs(x="tch - teste", y = "Densidade") -->
+
+<!-- ``` -->
+
+<!-- ```{r} -->
+
+<!-- tch_train |> -->
+
+<!--   select(tch:s) |> -->
+
+<!--   cor() |> -->
+
+<!--   corrplot::corrplot( method = "color", -->
+
+<!--          outline = T,, -->
+
+<!--          addgrid.col = "darkgray",cl.pos = "r", tl.col = "black", -->
+
+<!--          tl.cex = 1, cl.cex = 1, type = "upper", bg="azure2", -->
+
+<!--          diag = FALSE, -->
+
+<!--          addCoef.col = "black", -->
+
+<!--          cl.ratio = 0.2, -->
+
+<!--          cl.length = 5, -->
+
+<!--          number.cex = 0.8) -->
+
+<!-- ``` -->
+
+<!-- ### Definindo a `receita` da análise -->
+
+<!-- ```{r} -->
+
+<!-- tch_recipe <- recipe(tch ~ ., -->
+
+<!--                       data = tch_train |>    -->
+
+<!--             select(ambiente,textura, -->
+
+<!--                    corte,tch:s,variedade) -->
+
+<!-- ) |> -->
+
+<!--   step_naomit() %>% -->
+
+<!--   step_impute_median(where(is.numeric)) |> # inputação da mediana nos -->
+
+<!--   step_normalize(all_numeric_predictors()) |> # padronização dos dados -->
+
+<!--   step_novel(all_nominal_predictors())  |># trata categorias novas -->
+
+<!--   step_dummy(all_nominal_predictors())|> # variáveis categóricas -->
+
+<!--   step_zv(all_predictors())   -->
+
+<!-- bake(prep(tch_recipe), new_data = NULL) -->
+
+<!-- ``` -->
+
+<!-- ### Definindo a reamostragem -->
+
+<!-- ```{r} -->
+
+<!-- tch_resamples <- vfold_cv(tch_train, v = 5) -->
+
+<!-- ``` -->
+
+<!-- ## REDE NEURAL ARTIFICIAL -->
+
+<!-- ### Definição do Modelo de RNA - MultiLayer Perceptron -->
+
+<!-- ```{r} -->
+
+<!-- tch_bl_model <- mlp() |>  # margin sempre para regressão -->
+
+<!--   set_mode("regression") |> -->
+
+<!--   set_engine("nnet") -->
+
+<!-- ``` -->
+
+<!-- ### Definindo os parâmetros de tunagem -->
+
+<!-- ```{r} -->
+
+<!-- tch_bl_model <- mlp( -->
+
+<!--   hidden_units = tune(),      # Número de neurônios nas camadas -->
+
+<!--   # dropout = tune(),           # Dropout rate -->
+
+<!--   learn_rate = tune(),        # Taxa de aprendizado -->
+
+<!--   epochs = tune(),            # Número de épocas -->
+
+<!--   penalty = tune(),            # Regularização L2 -->
+
+<!--   activation = tune() # tune() -->
+
+<!-- ) %>%  -->
+
+<!--   set_mode("regression") |>  -->
+
+<!--   set_engine("brulee") -->
+
+<!-- ``` -->
+
+<!-- ### Workflow e tunagem -->
+
+<!-- ```{r} -->
+
+<!-- tch_bl_wf <- workflow()   |>  -->
+
+<!--   add_model(tch_bl_model) |>  -->
+
+<!--   add_recipe(tch_recipe) -->
+
+<!-- grid_bl <- grid_regular( -->
+
+<!--   hidden_units(range = c(10, 50)), -->
+
+<!--   # dropout(range = c(0, 0.3)), -->
+
+<!--   learn_rate(range = c(-3, -1)), -->
+
+<!--   epochs(range = c(50, 200)), -->
+
+<!--   penalty(range = c(-6, -3)), -->
+
+<!--   activation("tanh"), # c("relu", "sigmoid","tanh", "leaky_relu") máximo 4 -->
+
+<!--   levels = c(2,1,1,1,1) # mudar 3 3 3 3 1 #### <----- -->
+
+<!-- ) -->
+
+<!-- tch_bl_tune_grid <- tune_grid( -->
+
+<!--   tch_bl_wf, -->
+
+<!--   resamples = tch_resamples, -->
+
+<!--   grid = grid_bl, -->
+
+<!--   metrics = metric_set(rmse) -->
+
+<!-- ) -->
+
+<!-- autoplot(tch_bl_tune_grid) -->
+
+<!-- ``` -->
+
+<!-- ### Coletando métricas -->
+
+<!-- ```{r} -->
+
+<!-- collect_metrics(tch_bl_tune_grid) -->
+
+<!-- tch_bl_tune_grid |> -->
+
+<!--   show_best(metric = "rmse", n = 6) -->
+
+<!-- ``` -->
+
+<!-- ### Desempenho do modelo final -->
+
+<!-- ```{r} -->
+
+<!-- tch_bl_best_params <- select_best(tch_bl_tune_grid, metric = "rmse") -->
+
+<!-- tch_bl_wf <- tch_bl_wf |> -->
+
+<!--   finalize_workflow(tch_bl_best_params) -->
+
+<!-- tch_bl_last_fit <- last_fit(tch_bl_wf, tch_initial_split) -->
+
+<!-- ## Criando os preditos -->
+
+<!-- tch_test_preds <- bind_rows( -->
+
+<!--   collect_predictions(tch_bl_last_fit)  |> -->
+
+<!--     mutate(modelo = "bl")) -->
+
+<!-- tch_test <- testing(tch_initial_split) -->
+
+<!-- tch_test_preds |> -->
+
+<!--   ggplot(aes(x=.pred, y=tch)) + -->
+
+<!--   geom_point()+ -->
+
+<!--   theme_bw() + -->
+
+<!--   geom_smooth(method = "lm") + -->
+
+<!--   stat_regline_equation(ggplot2::aes( -->
+
+<!--   label =  paste(..eq.label.., ..rr.label.., sep = "*plain(\",\")~~"))) + -->
+
+<!--   geom_abline (slope=1, linetype = "dashed", color="Red") -->
+
+<!-- ``` -->
+
+<!-- ```{r} -->
+
+<!-- vip_plot <- tch_bl_last_fit %>% -->
+
+<!--   extract_workflow() %>% -->
+
+<!--   vip( -->
+
+<!--     method = "permute", -->
+
+<!--     train =  -->
+
+<!--       tch_bl_last_fit$.workflow[[1]]$pre$mold$predictors, -->
+
+<!--     target = tch_bl_last_fit$.workflow[[1]]$pre$mold$outcomes$tch, -->
+
+<!--     metric = "rmse", -->
+
+<!--     nsim = 5, -->
+
+<!--     pred_wrapper = function(object, newdata) { -->
+
+<!--       predict(object, newdata)$.pred -->
+
+<!--     }, -->
+
+<!--     aesthetics = list(color = "black", fill = "orange") -->
+
+<!--   ) + -->
+
+<!--   theme( -->
+
+<!--     axis.text.x = element_text( -->
+
+<!--       angle = 0, -->
+
+<!--       hjust = 1, -->
+
+<!--       size = rel(1.5) -->
+
+<!--     ), -->
+
+<!--     axis.text.y = element_text(size = rel(1.5)), -->
+
+<!--     axis.title.x = element_text(size = rel(1.5)) -->
+
+<!--   ) -->
+
+<!-- vip_plot -->
+
+<!-- ``` -->
+
+<!-- ```{r} -->
+
+<!-- # 1. workflow final treinado -->
+
+<!-- wf <- extract_workflow(tch_bl_last_fit) -->
+
+<!-- # 2. recipe já treinado (parte "pre" do workflow) -->
+
+<!-- rec_trained <- extract_recipe(wf) -->
+
+<!-- # 3. dados brutos de treino (como entraram originalmente, antes do recipe) -->
+
+<!-- train_data <- training(tch_bl_last_fit$splits[[1]]) -->
+
+<!-- # 4. aplica o recipe UMA VEZ -> dados já prontos (imputação, dummies, etc.) -->
+
+<!-- baked_train <- bake(rec_trained, new_data = train_data) -->
+
+<!-- # 5. extrai só o modelo ajustado, sem o recipe -->
+
+<!-- model_fit <- extract_fit_parsnip(wf) -->
+
+<!-- # 6. calcula a importância por permutação, isolando o modelo -->
+
+<!-- vi_data <- vi( -->
+
+<!--   model_fit, -->
+
+<!--   method = "permute", -->
+
+<!--   train  = baked_train, -->
+
+<!--   target = "tch", -->
+
+<!--   metric = "rmse", -->
+
+<!--   nsim   = 5, -->
+
+<!--   pred_wrapper = function(object, newdata) predict(object, newdata)$.pred -->
+
+<!-- ) -->
+
+<!-- # 7. mantém só as 10 variáveis mais importantes -->
+
+<!-- vi_data_top10 <- vi_data %>% -->
+
+<!--   arrange(desc(Importance)) %>% -->
+
+<!--   slice_head(n = 10) -->
+
+<!-- # 8. gráfico final, com nomes das variáveis na horizontal -->
+
+<!-- vip_plot <- ggplot(vi_data_top10, aes(x = reorder(Variable, Importance), y = Importance)) + -->
+
+<!--   geom_col(color = "black", fill = "orange") + -->
+
+<!--   coord_flip() + -->
+
+<!--   labs(x = NULL, y = "Importance") + -->
+
+<!--   theme_bw() + -->
+
+<!--   theme( -->
+
+<!--     axis.text.y  = element_text(angle = 0, hjust = 1, size = rel(1.5)), -->
+
+<!--     axis.text.x  = element_text(angle = 0, hjust = 0.5, size = rel(1.5)), -->
+
+<!--     axis.title.x = element_text(size = rel(1.5)) -->
+
+<!--   ) -->
+
+<!-- vip_plot -->
+
+<!-- ``` -->
+
+<!-- ### Principais Métricas -->
+
+<!-- ```{r} -->
+
+<!-- da <- tch_test_preds |> -->
+
+<!--   filter(tch > 0, .pred>0 ) -->
+
+<!-- my_r <- cor(da$tch,da$.pred) -->
+
+<!-- my_r2 <- my_r*my_r -->
+
+<!-- my_mse <- Metrics::mse(da$tch,da$.pred) -->
+
+<!-- my_rmse <- Metrics::rmse(da$tch, -->
+
+<!--                          da$.pred) -->
+
+<!-- my_mae <- Metrics::mae(da$tch,da$.pred) -->
+
+<!-- my_mape <- Metrics::mape(da$tch,da$.pred)*100 -->
+
+<!-- vector_of_metrics <- c(r=my_r, R2=my_r2, MSE=my_mse, RMSE=my_rmse, MAE=my_mae, MAPE=my_mape) -->
+
+<!-- print(data.frame(vector_of_metrics)) -->
+
+<!-- ``` -->
 
 <!-- ```{r} -->
 
